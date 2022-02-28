@@ -320,23 +320,43 @@ function Beat:new (o)
 end
 
 function Beat:onset_split()
+
   self.onset_files={}
   self.onset_files_bd={}
   self.onset_files_sd={}
   self.onset_stats={}
   local lowpass_file=string.random_filename()
+  local pad_left=string.random_filename()
+  local pad_right=string.random_filename()
+  local concat_file=string.random_filename()
+  local sample_rate,channels=audio.get_info(self.fname)
+  local duration=audio.length(self.fname)
+  if self.make_movie then
+    os.cmd("sox "..self.fname.." "..concat_file)
+    os.cmd("audiowaveform -i "..concat_file.." -o /tmp/breaktemp-onsetall.png --background-color ffffff --waveform-color 000000 -w 960 -h 512 --no-axis-labels --pixels-per-second "..math.floor(960/duration).." > /dev/null 2>&1")
+  end
   for i,v in ipairs(self.onsets) do
     if i>1 then
       local s=self.onsets[i-1]
       local onset_name=string.random_filename(s..".wav")
-      -- if s>0.01 then
-      --   s=s-0.01 -- add 0.005 excess + 0.005 leeway
-      -- end
       local e=(self.onsets[i]-self.onsets[i-1])
       if i==#self.onsets then
         os.cmd("sox "..self.fname.." "..onset_name.." trim "..s)
+        if self.make_movie then
+          os.cmd("sox -n -r "..sample_rate.." -c "..channels.." "..pad_left.." trim 0.0 "..self.onsets[i-1])
+          os.cmd("sox "..pad_left.." "..onset_name.." "..concat_file)
+          os.cmd("audiowaveform -i "..concat_file.." -o "..onset_name..".png --background-color ffffff00 --waveform-color ff0000 -w 960 -h 512 --no-axis-labels --pixels-per-second "..math.floor(960/duration).." > /dev/null 2>&1")
+        end
       else
         os.cmd("sox "..self.fname.." "..onset_name.." trim "..s.." "..e)
+
+        if self.make_movie then
+          -- create an image
+          os.cmd("sox -n -r "..sample_rate.." -c "..channels.." "..pad_left.." trim 0.0 "..self.onsets[i-1])
+          os.cmd("sox -n -r "..sample_rate.." -c "..channels.." "..pad_right.." trim 0.0 "..(duration-self.onsets[i]))
+          os.cmd("sox "..pad_left.." "..onset_name.." "..pad_right.." "..concat_file)
+          os.cmd("audiowaveform -i "..concat_file.." -o "..onset_name..".png --background-color ffffff00 --waveform-color ff0000 -w 960 -h 512 --no-axis-labels --pixels-per-second "..math.floor(960/duration).." > /dev/null 2>&1")
+        end
       end
       os.cmd("sox "..onset_name.." "..lowpass_file.." lowpass 200")
       onset_stat={bd=false,sd=false,bd_metric=audio.mean_norm(lowpass_file) or 0}
@@ -357,6 +377,7 @@ function Beat:onset_split()
 end
 
 function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare)
+  local movie_files={}
   beats=beats or 8
   local final_length=(60/self.tempo*beats)
   local joined_file=string.random_filename()
@@ -375,6 +396,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     if math.round(current_beat)%12==0 and math.random()<p_snare/100 and next(self.onset_files_sd)~=nil then
       v=self.onset_files_sd[math.random(#self.onset_files_sd)]
     end
+    local v_original=v
     if math.random()<p_pitch/100 then
       -- increase pitch the segment
       local vnew=string.random_filename()
@@ -397,12 +419,14 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       audio.silent_end(v,vnew,60/self.tempo/4)
       v=vnew
     end
+    local v_duration=0
     if i==1 then
       local new_beats=(audio.length(v))/(60/self.tempo/2)
       local new_beats_ideal=math.round(new_beats)
       local difference_time=(new_beats_ideal-new_beats)*(60/self.tempo/2)
       local vstretch=string.random_filename()
       audio.stretch(v,joined_file,audio.length(v)+difference_time+0.01)
+      v_duration=audio.length(joined_file)
     else
       -- try to keep it in time
       local new_beats=(audio.length(joined_file)+audio.length(v))/(60/self.tempo/2)
@@ -416,7 +440,16 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       end
       os.cmd("sox "..joined_file.." "..vstretch.." "..vfinal.." splice "..audio.length(joined_file)..",0.005,0.001")
       os.cmd("mv "..vfinal.." "..joined_file)
+      v_duration=audio.length(vstretch)
     end
+
+    if v_duration>0 and self.make_movie then
+      local movie_file=string.random_filename(".mp4")
+      os.cmd('composite -gravity center '..v_original..'.png /tmp/breaktemp-onsetall.png /tmp/breaktemp-1.png')
+      os.cmd('ffmpeg -hide_banner -loglevel error -y -loop 1 -i /tmp/breaktemp-1.png -c:v libx264 -t '..v_duration..' -pix_fmt yuv420p '..movie_file)
+      table.insert(movie_files,movie_file)
+    end
+
     current_beat=(audio.length(joined_file))/(60/self.tempo/2)
     if debugging then
       print("debug: current_beats: ",current_beat)
@@ -435,6 +468,19 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   end
 
   print("generated "..beats.." beats into '"..fname.."' @ "..(new_tempo or self.tempo).." bpm")
+  if self.make_movie then
+    local movie_list=string.random_filename(".txt")
+    f=io.open(movie_list,"a")
+    io.output(f)
+    for _,m in ipairs(movie_files) do
+      io.write("file '"..m.."'\n")
+    end
+    io.close(f)
+    local movie_noaudio=string.random_filename(".mp4")
+    os.cmd("ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "..movie_list.." -c copy "..movie_noaudio)
+    os.cmd("ffmpeg -hide_banner -loglevel error -y -i "..fname.." -i "..movie_noaudio.." "..fname..".mp4")
+    print("generated movie "..fname..".mp4")
+  end
 end
 
 function Beat:clean()
@@ -474,9 +520,12 @@ local p_trunc=5
 local p_deviation=30
 local p_kick=70
 local p_snare=50
+local make_movie=false
 for i,v in ipairs(arg) do
-  if string.find(v,"input-t") then
+  if string.find(v,"input") and string.find(v,"tempo") then
     input_tempo=tonumber(arg[i+1]) or input_tempo
+  elseif string.find(v,"make") and string.find(v,"movie") then
+    make_movie=true
   elseif string.find(v,"-i") and fname=="sample.aiff" then
     fname=arg[i+1]
   elseif string.find(v,"-o") then
@@ -520,6 +569,9 @@ DESCRIPTION
   -o, --output string
       output filename
  
+  --make-movie
+      creates movie (SLOW, and requires audiowaveform, ffmpeg, imagemagick)
+ 
   -b, --beats value
       number of beats
  
@@ -551,7 +603,7 @@ DESCRIPTION
       probability of snapping a snare to up beat (0-100%, default 50%)
 ]])
 else
-  local b=Beat:new({fname=fname,tempo=input_tempo})
+  local b=Beat:new({fname=fname,tempo=input_tempo,make_movie=make_movie})
   b:str()
   b:generate(fname_out,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare)
   os.cmd("rm /tmp/breaktemp-*")

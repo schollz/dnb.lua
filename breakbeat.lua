@@ -1,6 +1,8 @@
+#!/usr/bin/env lua
+
 math.randomseed(os.time())
 
-local debugging=true
+local debugging=false
 local charset={}
 
 -- qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890
@@ -352,9 +354,9 @@ function Beat:onset_split()
 
 end
 
-function Beat:generate(fname,beats,new_tempo)
+function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc)
   beats=beats or 8
-  local final_length=(60/self.tempo*beats+0.005)
+  local final_length=(60/self.tempo*beats)
   local joined_file=string.random_filename()
   local vfinal=string.random_filename()
   local excess_difference=0.005
@@ -371,24 +373,24 @@ function Beat:generate(fname,beats,new_tempo)
     if math.round(current_beat)%12==0 and math.random()<0.5 and next(self.onset_files_sd)~=nil then
       v=self.onset_files_sd[math.random(#self.onset_files_sd)]
     end
-    if math.random()<0.1 then
+    if math.random()<p_pitch/100 then
       -- increase pitch the segment
       local vnew=string.random_filename()
       os.cmd("sox "..v.." "..vnew.." pitch 200")
       v=vnew
     end
-    if math.random()<0.1 then
+    if math.random()<p_reverse/100 then
       -- reverse the segment
       local vnew=string.random_filename()
       os.cmd("sox "..v.." "..vnew.." reverse")
       v=vnew
     end
-    if math.random()<0.05 then
+    if math.random()<p_stutter/100 then
       local vnew=string.random_filename()
       audio.stutter(v,vnew,self.tempo,8,1/16)
       v=vnew
     end
-    if math.random()<0.05 and audio.length(v)>(60/self.tempo/4) then
+    if math.random()<p_trunc/100 and audio.length(v)>(60/self.tempo/4) then
       local vnew=string.random_filename()
       audio.silent_end(v,vnew,60/self.tempo/4)
       v=vnew
@@ -430,7 +432,7 @@ function Beat:generate(fname,beats,new_tempo)
     os.cmd("mv "..v.." "..fname)
   end
 
-  print("generated '"..fname.."' @ "..new_tempo.." bpm")
+  print("generated "..beats.." beats into '"..fname.."' @ "..(new_tempo or self.tempo).." bpm")
 end
 
 function Beat:clean()
@@ -444,24 +446,87 @@ function Beat:str()
   print("sample rate: "..self.sample_rate)
   print("channels: "..self.channels)
   print("tempo: "..self.tempo.." bpm")
-  print("onsets: ")
-  for i,v in ipairs(self.onset_files) do
-    local vtype="(?)"
-    if self.onset_stats[i].bd then
-      vtype="(bd)"
-    elseif self.onset_stats[i].sd then
-      vtype="(sd)"
+  if debugging then
+    print("onsets: ")
+    for i,v in ipairs(self.onset_files) do
+      local vtype="(?)"
+      if self.onset_stats[i].bd then
+        vtype="(bd)"
+      elseif self.onset_stats[i].sd then
+        vtype="(sd)"
+      end
+      print(v.."  "..self.onsets[i].."s"..", bd: "..self.onset_stats[i].bd_metric..", sd: "..self.onset_stats[i].sd_metric.." "..vtype)
     end
-    print(v.."  "..self.onsets[i].."s"..", bd: "..self.onset_stats[i].bd_metric..", sd: "..self.onset_stats[i].sd_metric.." "..vtype)
   end
 end
 
--- b=Beat:new({fname="beats16_bpm150_Ultimate_Jack_Loops_014__BPM_150_.wav"})
-b=Beat:new({fname="sample.aiff"})
-b:str()
-b:generate("break_generated.wav",8,150)
-os.cmd("rm /tmp/breaktemp-*")
+local fname="sample.aiff"
+local fname_out="result.wav"
+local beats=16
+local new_tempo=nil
+local p_reverse=10
+local p_stutter=5
+local p_pitch=10
+local p_trunc=5
+for i,v in ipairs(arg) do
+  if string.find(v,"-i") then
+    fname=arg[i+1]
+  elseif string.find(v,"-o") then
+    fname_out=arg[i+1]
+  elseif string.find(v,"-reverse") then
+    p_reverse=tonumber(arg[i+1]) or p_reverse
+  elseif string.find(v,"-stutter") then
+    p_stutter=tonumber(arg[i+1]) or p_stutter
+  elseif string.find(v,"-pitch") then
+    p_pitch=tonumber(arg[i+1]) or p_pitch
+  elseif string.find(v,"-trunc") then
+    p_trunc=tonumber(arg[i+1]) or p_trunc
+  elseif string.find(v,"-b") then
+    beats=tonumber(arg[i+1])
+  elseif string.find(v,"-t") then
+    new_tempo=tonumber(arg[i+1]) or new_tempo
+  elseif string.find(v,"-d") then
+    debugging=true
+  end
+end
 
--- audio.stutter("onset0.0.wav","stutter.wav",b.tempo,8)
--- audio.quantize("onset0.0.wav","quant.wav",b.tempo)
--- audio.quantize("onset0.21483.wav","quant.wav",b.tempo)
+if #arg<2 then
+  print([[NAME
+ 
+    breakbeat.lua - create a breakbeat from a drum loop  
+ 
+DESCRIPTION
+ 
+  -i, --input string
+      input filename
+ 
+  -o, --output string
+      output filename
+ 
+  -b, --beats value
+      number of beats
+ 
+  -t, --tempo value
+      tempo of generated beat
+ 
+  -d, --debug
+      debug mode
+ 
+  --reverse value
+      probability of reversing (0-100%, default 10%)
+ 
+  --stutter value
+      probability of stutter (0-100%, default 5%)
+ 
+  --pitch value
+      probability of pitch up (0-100%, default 10%)
+ 
+  --trunc value
+      probability of truncation (0-100%, default 5%)
+]])
+else
+  b=Beat:new({fname=fname})
+  b:str()
+  b:generate(fname_out,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc)
+  os.cmd("rm /tmp/breaktemp-*")
+end

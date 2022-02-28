@@ -296,10 +296,12 @@ function Beat:new (o)
   self.__index=self
 
   -- determine tempo
-  local s=os.capture("aubio tempo "..o.fname)
-  o.tempo=math.round(tonumber(s:match("%S+")))
   if o.tempo==nil then
-    do return end
+    local s=os.capture("aubio tempo "..o.fname)
+    o.tempo=math.round(tonumber(s:match("%S+")))
+    if o.tempo==nil then
+      do return end
+    end
   end
 
   -- determine channels
@@ -354,7 +356,7 @@ function Beat:onset_split()
 
 end
 
-function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc)
+function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare)
   beats=beats or 8
   local final_length=(60/self.tempo*beats)
   local joined_file=string.random_filename()
@@ -363,14 +365,14 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   local current_beat=0
   for i=1,(beats*3) do
     local vi=((i-1)%#self.onset_files)+1
-    if math.random()<0.5 then
+    if math.random()<p_deviation/100 then
       vi=math.random(#self.onset_files)
     end
     local v=self.onset_files[vi]
-    if math.round(current_beat)%8==0 and math.random()<0.5 and next(self.onset_files_bd)~=nil then
+    if math.round(current_beat)%8==0 and math.random()<p_kick/100 and next(self.onset_files_bd)~=nil then
       v=self.onset_files_bd[math.random(#self.onset_files_bd)]
     end
-    if math.round(current_beat)%12==0 and math.random()<0.5 and next(self.onset_files_sd)~=nil then
+    if math.round(current_beat)%12==0 and math.random()<p_snare/100 and next(self.onset_files_sd)~=nil then
       v=self.onset_files_sd[math.random(#self.onset_files_sd)]
     end
     if math.random()<p_pitch/100 then
@@ -464,12 +466,18 @@ local fname="sample.aiff"
 local fname_out="result.wav"
 local beats=16
 local new_tempo=nil
+local input_tempo=nil
 local p_reverse=10
 local p_stutter=5
 local p_pitch=10
 local p_trunc=5
+local p_deviation=30
+local p_kick=70
+local p_snare=50
 for i,v in ipairs(arg) do
-  if string.find(v,"-i") then
+  if string.find(v,"input-t") then
+    input_tempo=tonumber(arg[i+1]) or input_tempo
+  elseif string.find(v,"-i") and fname=="sample.aiff" then
     fname=arg[i+1]
   elseif string.find(v,"-o") then
     fname_out=arg[i+1]
@@ -481,6 +489,12 @@ for i,v in ipairs(arg) do
     p_pitch=tonumber(arg[i+1]) or p_pitch
   elseif string.find(v,"-trunc") then
     p_trunc=tonumber(arg[i+1]) or p_trunc
+  elseif string.find(v,"-deviation") then
+    p_deviation=tonumber(arg[i+1]) or p_deviation
+  elseif string.find(v,"-kick") then
+    p_kick=tonumber(arg[i+1]) or p_kick
+  elseif string.find(v,"-snare") then
+    p_snare=tonumber(arg[i+1]) or p_snare
   elseif string.find(v,"-b") then
     beats=tonumber(arg[i+1])
   elseif string.find(v,"-t") then
@@ -499,6 +513,9 @@ DESCRIPTION
  
   -i, --input string
       input filename
+ 
+  --input-tempo value
+      tempo of input file (defaults to determine automatically)
  
   -o, --output string
       output filename
@@ -523,10 +540,19 @@ DESCRIPTION
  
   --trunc value
       probability of truncation (0-100%, default 5%)
+ 
+  --deviation value
+      probability of deviating from base pattern (0-100%, default 30%)
+ 
+  --kick value
+      probability of snapping a kick to down beat (0-100%, default 80%)
+ 
+  --snare value
+      probability of snapping a snare to up beat (0-100%, default 50%)
 ]])
 else
-  b=Beat:new({fname=fname})
+  local b=Beat:new({fname=fname,tempo=input_tempo})
   b:str()
-  b:generate(fname_out,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc)
+  b:generate(fname_out,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare)
   os.cmd("rm /tmp/breaktemp-*")
 end

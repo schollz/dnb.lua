@@ -24,6 +24,9 @@ DESCRIPTION
   -i, --input string
       input filename
  
+  --input-tempo value
+      tempo of input file (defaults to determine automatically)
+ 
   -o, --output string
       output filename
  
@@ -47,6 +50,15 @@ DESCRIPTION
  
   --trunc value
       probability of truncation (0-100%, default 5%)
+ 
+  --deviation value
+      probability of deviating from base pattern (0-100%, default 30%)
+ 
+  --kick value
+      probability of snapping a kick to down beat (0-100%, default 80%)
+ 
+  --snare value
+      probability of snapping a snare to up beat (0-100%, default 50%)
 ```
 
 ## example

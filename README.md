@@ -30,6 +30,9 @@ DESCRIPTION
   -o, --output string
       output filename
  
+  --make-movie
+      creates movie (SLOW, and requires audiowaveform, ffmpeg, imagemagick)
+ 
   -b, --beats value
       number of beats
  
@@ -59,6 +62,7 @@ DESCRIPTION
  
   --snare value
       probability of snapping a snare to up beat (0-100%, default 50%)
+
 ```
 
 ## example

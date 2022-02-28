@@ -1,6 +1,6 @@
 math.randomseed(os.time())
 
-local debugging=false
+local debugging=true
 local charset={}
 
 -- qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890
@@ -194,6 +194,11 @@ function audio.length(fname)
   return tonumber(s)
 end
 
+function audio.mean_norm(fname)
+  local s=os.capture("sox "..fname.." -n stat 2>&1  | grep Mean | grep norm | awk '{print $3}'")
+  return tonumber(s)
+end
+
 function audio.quantize(fname,fname2,tempo,beat_division,excess)
   local duration=audio.length(fname)
   beat=beat or 1/16 -- defaults to sixteenth note
@@ -312,6 +317,10 @@ end
 
 function Beat:onset_split()
   self.onset_files={}
+  self.onset_files_bd={}
+  self.onset_files_sd={}
+  self.onset_stats={}
+  local lowpass_file=string.random_filename()
   for i,v in ipairs(self.onsets) do
     if i>1 then
       local s=self.onsets[i-1]
@@ -325,9 +334,22 @@ function Beat:onset_split()
       else
         os.cmd("sox "..self.fname.." "..onset_name.." trim "..s.." "..e)
       end
+      os.cmd("sox "..onset_name.." "..lowpass_file.." lowpass 200")
+      onset_stat={bd=false,sd=false,bd_metric=audio.mean_norm(lowpass_file) or 0}
+      os.cmd("sox "..onset_name.." "..lowpass_file.." lowpass 400 highpass 200")
+      onset_stat.sd_metric=audio.mean_norm(lowpass_file) or 0
+      if onset_stat.sd_metric>0.01 and onset_stat.sd_metric>onset_stat.bd_metric then
+        onset_stat.sd=true
+        table.insert(self.onset_files_sd,onset_name)
+      elseif onset_stat.bd_metric>0.02 then
+        onset_stat.bd=true
+        table.insert(self.onset_files_bd,onset_name)
+      end
+      table.insert(self.onset_stats,onset_stat)
       table.insert(self.onset_files,onset_name)
     end
   end
+
 end
 
 function Beat:generate(fname,beats,new_tempo)
@@ -336,12 +358,19 @@ function Beat:generate(fname,beats,new_tempo)
   local joined_file=string.random_filename()
   local vfinal=string.random_filename()
   local excess_difference=0.005
+  local current_beat=0
   for i=1,(beats*3) do
     local vi=((i-1)%#self.onset_files)+1
     if math.random()<0.5 then
       vi=math.random(#self.onset_files)
     end
     local v=self.onset_files[vi]
+    if math.round(current_beat)%8==0 and math.random()<0.5 and next(self.onset_files_bd)~=nil then
+      v=self.onset_files_bd[math.random(#self.onset_files_bd)]
+    end
+    if math.round(current_beat)%12==0 and math.random()<0.5 and next(self.onset_files_sd)~=nil then
+      v=self.onset_files_sd[math.random(#self.onset_files_sd)]
+    end
     if math.random()<0.1 then
       -- increase pitch the segment
       local vnew=string.random_filename()
@@ -384,8 +413,9 @@ function Beat:generate(fname,beats,new_tempo)
       os.cmd("sox "..joined_file.." "..vstretch.." "..vfinal.." splice "..audio.length(joined_file)..",0.005,0.001")
       os.cmd("mv "..vfinal.." "..joined_file)
     end
+    current_beat=(audio.length(joined_file))/(60/self.tempo/2)
     if debugging then
-      print("debug: current_beats: ",(audio.length(joined_file))/(60/self.tempo/2))
+      print("debug: current_beats: ",current_beat)
     end
     if audio.length(joined_file)>=(60/self.tempo*beats+0.005) then
       break
@@ -394,7 +424,7 @@ function Beat:generate(fname,beats,new_tempo)
 
   -- trim to X beats
   os.cmd("sox "..joined_file.." "..fname.." trim 0 "..final_length)
-  if new_tempo~=nil then
+  if new_tempo~=nil and new_tempo~=self.tempo then
     local v=string.random_filename()
     os.cmd("sox "..fname.." "..v.." speed "..new_tempo/self.tempo)
     os.cmd("mv "..v.." "..fname)
@@ -415,14 +445,21 @@ function Beat:str()
   print("channels: "..self.channels)
   print("tempo: "..self.tempo.." bpm")
   print("onsets: ")
-  for _,v in ipairs(self.onsets) do
-    print(v.."s")
+  for i,v in ipairs(self.onset_files) do
+    local vtype="(?)"
+    if self.onset_stats[i].bd then
+      vtype="(bd)"
+    elseif self.onset_stats[i].sd then
+      vtype="(sd)"
+    end
+    print(v.."  "..self.onsets[i].."s"..", bd: "..self.onset_stats[i].bd_metric..", sd: "..self.onset_stats[i].sd_metric.." "..vtype)
   end
 end
 
+-- b=Beat:new({fname="beats16_bpm150_Ultimate_Jack_Loops_014__BPM_150_.wav"})
 b=Beat:new({fname="sample.aiff"})
 b:str()
-b:generate("break_generated.wav",64,160)
+b:generate("break_generated.wav",8,150)
 os.cmd("rm /tmp/breaktemp-*")
 
 -- audio.stutter("onset0.0.wav","stutter.wav",b.tempo,8)

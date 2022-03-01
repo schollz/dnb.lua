@@ -229,7 +229,7 @@ function audio.stretch(fname,fname2,newlength)
   os.cmd("sox "..fname.." "..fname2.." trim 0 "..newlength)
 end
 
-function audio.stutter(fname,fname2,tempo,count,beat_division,gainup,excess)
+function audio.stutter(fname,fname2,tempo,count,beat_division,gain)
   count=count or 4
   beat=beat or 1/16 -- defaults to sixteenth note
   excess=excess or 0.005 -- add 0.005 excess for joining
@@ -239,10 +239,28 @@ function audio.stutter(fname,fname2,tempo,count,beat_division,gainup,excess)
   local foo3=string.random_filename()
   audio.quantize(fname,foo1,tempo,1/16,0)
   -- trim to beat
-  os.cmd("sox "..foo1.." "..foo2.." gain -"..(gainup and 2*count or 0).." trim 0 "..(beat_sec+0.005))
+  local gain_amt=0
+  if gain>0 then
+    -- increase
+    gain_amt=-1*2*count
+  elseif gain<0 then
+    gain_amt=-2
+  else
+    gain_amt=-2
+  end
+  os.cmd("sox "..foo1.." "..foo2.." gain "..gain_amt.." trim 0 "..(beat_sec+0.005))
   os.cmd("sox "..foo2.." "..fname2)
   for i=2,count do
-    os.cmd("sox "..foo1.." "..foo2.." gain -"..(gainup and 2*(count-i) or 0).." trim 0 "..(beat_sec+0.005))
+    local gain_amt=0
+    if gain>0 then
+      -- increase
+      gain_amt=-1*2*(count-i)
+    elseif gain<0 then
+      gain_amt=-1*i*2
+    else
+      gain_amt=-2
+    end
+    os.cmd("sox "..foo1.." "..foo2.." gain "..gain_amt.." trim 0 "..(beat_sec+0.005))
     os.cmd("sox "..fname2.." "..foo2.." "..foo3.." splice "..audio.length(fname2))
     os.cmd("sox "..foo3.." "..fname2)
   end
@@ -437,22 +455,22 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     end
     if math.random()<p_stutter/100/4 and math.round(current_beat)%4==0 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,12,1/16,true)
+      audio.stutter(v,vnew,self.tempo,12,1/16,1)
       v=vnew
     end
     if math.random()<p_stutter/100/4 and math.round(current_beat)%4==1 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,8,1/16,true)
+      audio.stutter(v,vnew,self.tempo,8,1/16,math.random(-1,3))
       v=vnew
     end
     if math.random()<p_stutter/100/4 and math.round(current_beat)%4==2 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,4,1/16,math.random(1,2)==1)
+      audio.stutter(v,vnew,self.tempo,4,1/16,math.random(-2,4))
       v=vnew
     end
     if math.random()<p_stutter/100/4 and math.round(current_beat)%4==3 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,2,1/16,math.random(1,2)==1)
+      audio.stutter(v,vnew,self.tempo,2,1/16,math.random(-3,4))
       v=vnew
     end
     if math.random()<p_trunc/100 and audio.length(v)>(60/self.tempo/4) then

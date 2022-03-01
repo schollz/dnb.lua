@@ -426,7 +426,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     if math.random()<p_pitch/100 then
       -- increase pitch the segment
       local vnew=string.random_filename()
-      os.cmd("sox "..v.." "..vnew.." pitch 200")
+      os.cmd("sox "..v.." "..vnew.." pitch "..(200*math.random(1,4)))
       v=vnew
     end
     if math.random()<p_reverse/100 then
@@ -435,9 +435,24 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       os.cmd("sox "..v.." "..vnew.." reverse")
       v=vnew
     end
-    if math.random()<p_stutter/100 then
+    if math.random()<p_stutter/100/4 and math.round(current_beat)%4==0 then
+      local vnew=string.random_filename()
+      audio.stutter(v,vnew,self.tempo,12,1/16)
+      v=vnew
+    end
+    if math.random()<p_stutter/100/4 and math.round(current_beat)%4==1 then
       local vnew=string.random_filename()
       audio.stutter(v,vnew,self.tempo,8,1/16)
+      v=vnew
+    end
+    if math.random()<p_stutter/100/4 and math.round(current_beat)%4==2 then
+      local vnew=string.random_filename()
+      audio.stutter(v,vnew,self.tempo,4,1/16)
+      v=vnew
+    end
+    if math.random()<p_stutter/100/4 and math.round(current_beat)%4==3 then
+      local vnew=string.random_filename()
+      audio.stutter(v,vnew,self.tempo,2,1/16)
       v=vnew
     end
     if math.random()<p_trunc/100 and audio.length(v)>(60/self.tempo/4) then
@@ -446,7 +461,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       v=vnew
     end
     -- TODO: make this an optiona
-    if math.random()<0.01 and self.onset_is_snare[v_original] then
+    if math.random()<0.01 and (self.onset_is_snare[v_original] or self.onset_is_kick[v_original]) then
       -- add reverb to snare
       local vnew=string.random_filename()
       local vduration=audio.length(v)

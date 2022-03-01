@@ -189,6 +189,11 @@ function table.contains(t,x)
   return false
 end
 
+-- lfo goes from 0 to 1
+function math.lfo(t,period,phase)
+  return (math.sin(2*3.14159265/period+phase)+1)/2
+end
+
 local audio={}
 
 function audio.length(fname)
@@ -397,10 +402,15 @@ function Beat:onset_split()
 
 end
 
-function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare,p_half,kick_mix,snare_mix)
+function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare,p_half,p_reverb,kick_mix,snare_mix)
   local kick_merge=string.random_filename()
   local snare_merge=string.random_filename()
-  -- TODO: make these gains optional
+  local p_reverse_lfo={math.random(12,24),math.random(1,100)}
+  local p_stutter_lfo={math.random(12,18),math.random(1,100)}
+  local p_pitch_lfo={math.random(12,24),math.random(1,100)}
+  local p_trunc_lfo={math.random(12,24),math.random(1,100)}
+  local p_deviation_lfo={math.random(4,12),math.random(1,100)}
+  local p_half_lfo={math.random(12,18),math.random(1,100)}
 
   os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." kick.wav "..kick_merge.." gain "..kick_mix)
   os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." snare.wav "..snare_merge.." gain "..snare_mix)
@@ -441,51 +451,51 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       v=vnew
     end
 
-    if math.random()<p_pitch/100 then
+    if math.random()<p_pitch/100*math.lfo(current_beat,p_pitch_lfo[1],p_pitch_lfo[2])*2 then
       -- increase pitch the segment
       local vnew=string.random_filename()
       os.cmd("sox "..v.." "..vnew.." pitch "..(200*math.random(1,4)))
       v=vnew
     end
-    if math.random()<p_half/100 then
+    if math.random()<p_half/100*math.lfo(current_beat,p_half_lfo[1],p_half_lfo[2])*2 then
       -- slow down
       local vnew=string.random_filename()
       os.cmd("sox "..v.." "..vnew.." speed "..(0.5))
       v=vnew
     end
-    if math.random()<p_reverse/100 then
+    if math.random()<p_reverse/100*math.lfo(current_beat,p_reverse_lfo[1],p_reverse_lfo[2])*2 then
       -- reverse the segment
       local vnew=string.random_filename()
       os.cmd("sox "..v.." "..vnew.." reverse")
       v=vnew
     end
-    if math.random()<p_stutter/100/4 and math.round(current_beat)%4==0 then
+    if math.random()<p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==0 then
       local vnew=string.random_filename()
       audio.stutter(v,vnew,self.tempo,12,1/16,1)
       v=vnew
     end
-    if math.random()<p_stutter/100/4 and math.round(current_beat)%4==1 then
+    if math.random()<p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==1 then
       local vnew=string.random_filename()
       audio.stutter(v,vnew,self.tempo,8,1/16,math.random(-1,5))
       v=vnew
     end
-    if math.random()<p_stutter/100/4 and math.round(current_beat)%4==2 then
+    if math.random()<p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==2 then
       local vnew=string.random_filename()
       audio.stutter(v,vnew,self.tempo,4,1/16,math.random(-2,6))
       v=vnew
     end
-    if math.random()<p_stutter/100/4 and math.round(current_beat)%4==3 then
+    if math.random()<p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==3 then
       local vnew=string.random_filename()
       audio.stutter(v,vnew,self.tempo,2,1/16,math.random(-3,7))
       v=vnew
     end
-    if math.random()<p_trunc/100 and audio.length(v)>(60/self.tempo/4) then
+    if math.random()<p_trunc/100*math.lfo(current_beat,p_trunc_lfo[1],p_trunc_lfo[2])*2 and audio.length(v)>(60/self.tempo/4) then
       local vnew=string.random_filename()
       audio.silent_end(v,vnew,60/self.tempo/4)
       v=vnew
     end
     -- TODO: make this an optiona
-    if math.random()<0.01 and (self.onset_is_snare[v_original] or self.onset_is_kick[v_original]) then
+    if math.random()<p_reverb/100 and (self.onset_is_snare[v_original] or self.onset_is_kick[v_original]) then
       -- add reverb to snare
       local vnew=string.random_filename()
       local vduration=audio.length(v)
@@ -597,6 +607,7 @@ local p_deviation=30
 local p_kick=70
 local p_snare=50
 local p_half=5
+local p_reverb=2
 local kick_mix=-6
 local snare_mix=-6
 local make_movie=false
@@ -629,6 +640,8 @@ for i,v in ipairs(arg) do
     snare_mix=tonumber(arg[i+1]) or snare_mix
   elseif string.find(v,"snare") then
     p_snare=tonumber(arg[i+1]) or p_snare
+  elseif string.find(v,"reverb") then
+    p_reverb=tonumber(arg[i+1]) or p_reverb
   elseif string.find(v,"-b") then
     beats=tonumber(arg[i+1])
   elseif string.find(v,"-t") then
@@ -681,6 +694,9 @@ DESCRIPTION
   --half value
       probability of slow down (0-100%, default 5%)
  
+  --reverb value
+      probability of adding reverb tail to kick/snare (0-100%, default 2%)
+ 
   --deviation value
       probability of deviating from base pattern (0-100%, default 30%)
  
@@ -699,6 +715,6 @@ DESCRIPTION
 else
   local b=Beat:new({fname=fname,tempo=input_tempo,make_movie=make_movie})
   b:str()
-  b:generate(fname_out,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare,p_half,kick_mix,snare_mix)
+  b:generate(fname_out,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare,p_half,p_reverb,kick_mix,snare_mix)
   os.cmd("rm /tmp/breaktemp-*")
 end

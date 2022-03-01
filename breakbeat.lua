@@ -397,13 +397,13 @@ function Beat:onset_split()
 
 end
 
-function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare)
+function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare,p_half,kick_mix,snare_mix)
   local kick_merge=string.random_filename()
   local snare_merge=string.random_filename()
   -- TODO: make these gains optional
 
-  os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." kick.wav "..kick_merge.." gain -6")
-  os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." snare.wav "..snare_merge.." gain -6")
+  os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." kick.wav "..kick_merge.." gain "..kick_mix)
+  os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." snare.wav "..snare_merge.." gain "..snare_mix)
   local movie_files={}
   beats=beats or 8
   local final_length=(60/self.tempo*beats)
@@ -447,6 +447,12 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       os.cmd("sox "..v.." "..vnew.." pitch "..(200*math.random(1,4)))
       v=vnew
     end
+    if math.random()<p_half/100 then
+      -- slow down
+      local vnew=string.random_filename()
+      os.cmd("sox "..v.." "..vnew.." speed "..(0.5))
+      v=vnew
+    end
     if math.random()<p_reverse/100 then
       -- reverse the segment
       local vnew=string.random_filename()
@@ -460,17 +466,17 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     end
     if math.random()<p_stutter/100/4 and math.round(current_beat)%4==1 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,8,1/16,math.random(-1,3))
+      audio.stutter(v,vnew,self.tempo,8,1/16,math.random(-1,5))
       v=vnew
     end
     if math.random()<p_stutter/100/4 and math.round(current_beat)%4==2 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,4,1/16,math.random(-2,4))
+      audio.stutter(v,vnew,self.tempo,4,1/16,math.random(-2,6))
       v=vnew
     end
     if math.random()<p_stutter/100/4 and math.round(current_beat)%4==3 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,2,1/16,math.random(-3,4))
+      audio.stutter(v,vnew,self.tempo,2,1/16,math.random(-3,7))
       v=vnew
     end
     if math.random()<p_trunc/100 and audio.length(v)>(60/self.tempo/4) then
@@ -590,6 +596,9 @@ local p_trunc=5
 local p_deviation=30
 local p_kick=70
 local p_snare=50
+local p_half=5
+local kick_mix=-6
+local snare_mix=-6
 local make_movie=false
 for i,v in ipairs(arg) do
   if string.find(v,"input") and string.find(v,"tempo") then
@@ -600,19 +609,25 @@ for i,v in ipairs(arg) do
     fname=arg[i+1]
   elseif string.find(v,"-o") then
     fname_out=arg[i+1]
-  elseif string.find(v,"-reverse") then
+  elseif string.find(v,"reverse") then
     p_reverse=tonumber(arg[i+1]) or p_reverse
-  elseif string.find(v,"-stutter") then
+  elseif string.find(v,"half") then
+    p_half=tonumber(arg[i+1]) or p_half
+  elseif string.find(v,"stutter") then
     p_stutter=tonumber(arg[i+1]) or p_stutter
-  elseif string.find(v,"-pitch") then
+  elseif string.find(v,"pitch") then
     p_pitch=tonumber(arg[i+1]) or p_pitch
-  elseif string.find(v,"-trunc") then
+  elseif string.find(v,"trunc") then
     p_trunc=tonumber(arg[i+1]) or p_trunc
-  elseif string.find(v,"-deviation") then
+  elseif string.find(v,"deviation") then
     p_deviation=tonumber(arg[i+1]) or p_deviation
-  elseif string.find(v,"-kick") then
+  elseif string.find(v,"kick") and string.find(v,"mix") then
+    kick_mix=tonumber(arg[i+1]) or kick_mix
+  elseif string.find(v,"kick") then
     p_kick=tonumber(arg[i+1]) or p_kick
-  elseif string.find(v,"-snare") then
+  elseif string.find(v,"snare") and string.find(v,"mix") then
+    snare_mix=tonumber(arg[i+1]) or snare_mix
+  elseif string.find(v,"snare") then
     p_snare=tonumber(arg[i+1]) or p_snare
   elseif string.find(v,"-b") then
     beats=tonumber(arg[i+1])
@@ -663,18 +678,27 @@ DESCRIPTION
   --trunc value
       probability of truncation (0-100%, default 5%)
  
+  --half value
+      probability of slow down (0-100%, default 5%)
+ 
   --deviation value
       probability of deviating from base pattern (0-100%, default 30%)
  
   --kick value
       probability of snapping a kick to down beat (0-100%, default 80%)
  
+  --kick-mix value
+      volume of added kick in dB (default -6)
+ 
   --snare value
       probability of snapping a snare to up beat (0-100%, default 50%)
+ 
+  --snare-mix value
+      volume of added snare in dB (default -6)
 ]])
 else
   local b=Beat:new({fname=fname,tempo=input_tempo,make_movie=make_movie})
   b:str()
-  b:generate(fname_out,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare)
+  b:generate(fname_out,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare,p_half,kick_mix,snare_mix)
   os.cmd("rm /tmp/breaktemp-*")
 end

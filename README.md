@@ -64,16 +64,23 @@ DESCRIPTION
   --trunc value
       probability of truncation (0-100%, default 5%)
  
+  --half value
+      probability of slow down (0-100%, default 5%)
+ 
   --deviation value
       probability of deviating from base pattern (0-100%, default 30%)
  
   --kick value
       probability of snapping a kick to down beat (0-100%, default 80%)
  
+  --kick-mix value
+      volume of added kick in dB (default -6)
+ 
   --snare value
       probability of snapping a snare to up beat (0-100%, default 50%)
-
-
+ 
+  --snare-mix value
+      volume of added snare in dB (default -6)
 ```
 
 ## example

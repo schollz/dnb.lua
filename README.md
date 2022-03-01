@@ -2,6 +2,9 @@
 
 using aubio and sox to generate breakbeats
 
+## demo
+
+[![demo](https://videoapi-muybridge.vimeocdn.com/animated-thumbnails/image/f78931b5-e28b-4202-a6ac-3cb7feff294c.gif?ClientID=vimeo-core-prod&Date=1646096543&Signature=9bd8c270fcf9d7edf744c05afddd25839629fe0f)](https://vimeo.com/683086129)
 
 ## install
 
@@ -10,6 +13,13 @@ also you need lua (5.1+).
 
 ```bash
 > sudo apt install aubio-tools sox
+```
+
+to make movies you also need `ffmpeg`, `imagemagick`, and `audiowaveform`.
+
+
+```bash
+> sudo apt install ffmpeg audiowaveform imagemagick
 ```
 
 ## usage
@@ -62,6 +72,7 @@ DESCRIPTION
  
   --snare value
       probability of snapping a snare to up beat (0-100%, default 50%)
+
 
 ```
 

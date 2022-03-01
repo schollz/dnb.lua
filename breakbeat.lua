@@ -382,6 +382,7 @@ end
 function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare)
   local kick_merge=string.random_filename()
   local snare_merge=string.random_filename()
+  -- TODO: make these gains optional
 
   os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." kick.wav "..kick_merge.." gain -6")
   os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." snare.wav "..snare_merge.." gain -6")
@@ -444,7 +445,8 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       audio.silent_end(v,vnew,60/self.tempo/4)
       v=vnew
     end
-    if math.random()<0.1 and self.onset_is_snare[v_original] then
+    -- TODO: make this an optiona
+    if math.random()<0.01 and self.onset_is_snare[v_original] then
       -- add reverb to snare
       local vnew=string.random_filename()
       local vduration=audio.length(v)
@@ -492,15 +494,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     end
   end
 
-  -- trim to X beats
-  os.cmd("sox "..joined_file.." "..fname.." trim 0 "..final_length)
-  if new_tempo~=nil and new_tempo~=self.tempo then
-    local v=string.random_filename()
-    os.cmd("sox "..fname.." "..v.." speed "..new_tempo/self.tempo)
-    os.cmd("mv "..v.." "..fname)
-  end
-
-  print("generated "..beats.." beats into '"..fname.."' @ "..(new_tempo or self.tempo).." bpm")
+  -- make move before pitch shifting/trimming
   if self.make_movie then
     local movie_list=string.random_filename(".txt")
     f=io.open(movie_list,"a")
@@ -511,9 +505,19 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     io.close(f)
     local movie_noaudio=string.random_filename(".mp4")
     os.cmd("ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "..movie_list.." -c copy "..movie_noaudio)
-    os.cmd("ffmpeg -hide_banner -loglevel error -y -i "..fname.." -i "..movie_noaudio.." "..fname..".mp4")
+    os.cmd("ffmpeg -hide_banner -loglevel error -y -i "..joined_file.." -i "..movie_noaudio.." "..fname..".mp4")
     print("generated movie "..fname..".mp4")
   end
+
+  -- trim to X beats
+  os.cmd("sox "..joined_file.." "..fname.." trim 0 "..final_length)
+  if new_tempo~=nil and new_tempo~=self.tempo then
+    local v=string.random_filename()
+    os.cmd("sox "..fname.." "..v.." speed "..new_tempo/self.tempo)
+    os.cmd("mv "..v.." "..fname)
+  end
+
+  print("generated "..beats.." beats into '"..fname.."' @ "..(new_tempo or self.tempo).." bpm")
 end
 
 function Beat:clean()

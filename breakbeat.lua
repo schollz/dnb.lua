@@ -380,9 +380,11 @@ function Beat:onset_split()
 end
 
 function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare)
-  math.randomseed(1)
-  os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." kick.wav kick_merge.wav gain 0")
-  os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." snare.wav snare_merge.wav gain 0")
+  local kick_merge=string.random_filename()
+  local snare_merge=string.random_filename()
+
+  os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." kick.wav "..kick_merge.." gain -6")
+  os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." snare.wav "..snare_merge.." gain -6")
   local movie_files={}
   beats=beats or 8
   local final_length=(60/self.tempo*beats)
@@ -405,18 +407,18 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     end
     local v_original=v
 
-    if self.onset_is_kick[v] then
+    if self.onset_is_kick[v_original] then
       -- mix the sound with a kick
       local original_length=audio.length(v)
       local vnew=string.random_filename()
-      os.cmd("sox -m kick_merge.wav "..v.." "..vnew.." trim 0 "..original_length)
+      os.cmd("sox -m "..kick_merge.." "..v.." "..vnew.." trim 0 "..original_length)
       v=vnew
     end
-    if self.onset_is_snare[v] then
+    if self.onset_is_snare[v_original] then
       -- mix the sound with a kick
       local original_length=audio.length(v)
       local vnew=string.random_filename()
-      os.cmd("sox -m snare_merge.wav "..v.." "..vnew.." trim 0 "..original_length)
+      os.cmd("sox -m "..snare_merge.." "..v.." "..vnew.." trim 0 "..original_length)
       v=vnew
     end
 
@@ -440,6 +442,13 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     if math.random()<p_trunc/100 and audio.length(v)>(60/self.tempo/4) then
       local vnew=string.random_filename()
       audio.silent_end(v,vnew,60/self.tempo/4)
+      v=vnew
+    end
+    if math.random()<0.1 and self.onset_is_snare[v_original] then
+      -- add reverb to snare
+      local vnew=string.random_filename()
+      local vduration=audio.length(v)
+      os.cmd("sox "..v.." "..vnew.." gain 0 pad 0 "..(vduration*math.random(1,3)/2).." reverb")
       v=vnew
     end
     local v_duration=0

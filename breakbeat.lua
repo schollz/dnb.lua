@@ -320,11 +320,12 @@ function Beat:new (o)
 end
 
 function Beat:onset_split()
-
   self.onset_files={}
   self.onset_files_bd={}
   self.onset_files_sd={}
   self.onset_stats={}
+  self.onset_is_kick={}
+  self.onset_is_snare={}
   local lowpass_file=string.random_filename()
   local pad_left=string.random_filename()
   local pad_right=string.random_filename()
@@ -365,9 +366,11 @@ function Beat:onset_split()
       if onset_stat.sd_metric>0.01 and onset_stat.sd_metric>onset_stat.bd_metric then
         onset_stat.sd=true
         table.insert(self.onset_files_sd,onset_name)
+        self.onset_is_snare[onset_name]=true
       elseif onset_stat.bd_metric>0.02 then
         onset_stat.bd=true
         table.insert(self.onset_files_bd,onset_name)
+        self.onset_is_kick[onset_name]=true
       end
       table.insert(self.onset_stats,onset_stat)
       table.insert(self.onset_files,onset_name)
@@ -377,6 +380,9 @@ function Beat:onset_split()
 end
 
 function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare)
+  math.randomseed(1)
+  os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." kick.wav kick_merge.wav gain 0")
+  os.cmd("sox -r "..self.sample_rate.." -c "..self.channels.." snare.wav snare_merge.wav gain 0")
   local movie_files={}
   beats=beats or 8
   local final_length=(60/self.tempo*beats)
@@ -384,6 +390,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   local vfinal=string.random_filename()
   local excess_difference=0.005
   local current_beat=0
+  local duration_last=0
   for i=1,(beats*3) do
     local vi=((i-1)%#self.onset_files)+1
     if math.random()<p_deviation/100 then
@@ -397,6 +404,22 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       v=self.onset_files_sd[math.random(#self.onset_files_sd)]
     end
     local v_original=v
+
+    if self.onset_is_kick[v] then
+      -- mix the sound with a kick
+      local original_length=audio.length(v)
+      local vnew=string.random_filename()
+      os.cmd("sox -m kick_merge.wav "..v.." "..vnew.." trim 0 "..original_length)
+      v=vnew
+    end
+    if self.onset_is_snare[v] then
+      -- mix the sound with a kick
+      local original_length=audio.length(v)
+      local vnew=string.random_filename()
+      os.cmd("sox -m snare_merge.wav "..v.." "..vnew.." trim 0 "..original_length)
+      v=vnew
+    end
+
     if math.random()<p_pitch/100 then
       -- increase pitch the segment
       local vnew=string.random_filename()
@@ -426,7 +449,6 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       local difference_time=(new_beats_ideal-new_beats)*(60/self.tempo/2)
       local vstretch=string.random_filename()
       audio.stretch(v,joined_file,audio.length(v)+difference_time+0.01)
-      v_duration=audio.length(joined_file)
     else
       -- try to keep it in time
       local new_beats=(audio.length(joined_file)+audio.length(v))/(60/self.tempo/2)
@@ -440,15 +462,17 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       end
       os.cmd("sox "..joined_file.." "..vstretch.." "..vfinal.." splice "..audio.length(joined_file)..",0.005,0.001")
       os.cmd("mv "..vfinal.." "..joined_file)
-      v_duration=audio.length(vstretch)
     end
 
-    if v_duration>0 and self.make_movie then
+    local v_duration=audio.length(joined_file)
+    if v_duration-duration_last>0 and self.make_movie then
+      local vv_duration=v_duration-duration_last
       local movie_file=string.random_filename(".mp4")
       os.cmd('composite -gravity center '..v_original..'.png /tmp/breaktemp-onsetall.png /tmp/breaktemp-1.png')
-      os.cmd('ffmpeg -hide_banner -loglevel error -y -loop 1 -i /tmp/breaktemp-1.png -c:v libx264 -t '..v_duration..' -pix_fmt yuv420p '..movie_file)
+      os.cmd('ffmpeg -hide_banner -loglevel error -y -loop 1 -i /tmp/breaktemp-1.png -c:v libx264 -t '..vv_duration..' -pix_fmt yuv420p '..movie_file)
       table.insert(movie_files,movie_file)
     end
+    duration_last=v_duration
 
     current_beat=(audio.length(joined_file))/(60/self.tempo/2)
     if debugging then

@@ -234,7 +234,7 @@ function audio.stretch(fname,fname2,newlength)
   os.cmd("sox "..fname.." "..fname2.." trim 0 "..newlength)
 end
 
-function audio.stutter(fname,fname2,tempo,count,beat_division,gain)
+function audio.stutter(fname,fname2,tempo,count,beat_division,gain,gainpitch)
   count=count or 4
   beat=beat or 1/16 -- defaults to sixteenth note
   excess=excess or 0.005 -- add 0.005 excess for joining
@@ -255,6 +255,8 @@ function audio.stutter(fname,fname2,tempo,count,beat_division,gain)
   end
   os.cmd("sox "..foo1.." "..foo2.." gain "..gain_amt.." trim 0 "..(beat_sec+0.005))
   os.cmd("sox "..foo2.." "..fname2)
+  local pitch_amt=0
+  gainpitch=gainpitch or 0
   for i=2,count do
     local gain_amt=0
     if gain>0 then
@@ -265,7 +267,8 @@ function audio.stutter(fname,fname2,tempo,count,beat_division,gain)
     else
       gain_amt=-2
     end
-    os.cmd("sox "..foo1.." "..foo2.." gain "..gain_amt.." trim 0 "..(beat_sec+0.005))
+    pitch_amt=pitch_amt+(200*gainpitch)
+    os.cmd("sox "..foo1.." "..foo2.." gain "..gain_amt.." pitch "..pitch_amt.." trim 0 "..(beat_sec+0.005))
     os.cmd("sox "..fname2.." "..foo2.." "..foo3.." splice "..audio.length(fname2))
     os.cmd("sox "..foo3.." "..fname2)
   end
@@ -464,7 +467,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       os.cmd("sox "..v.." "..vnew.." speed "..(0.5))
       v=vnew
     end
-    if math.random()<p_reverse/100*math.lfo(current_beat,p_reverse_lfo[1],p_reverse_lfo[2])*2 then
+    if math.random()<p_reverse/100*math.lfo(current_beat,p_reverse_lfo[1],p_reverse_lfo[2])*2/2 then
       -- reverse the segment
       local vnew=string.random_filename()
       os.cmd("sox "..v.." "..vnew.." reverse")
@@ -472,27 +475,27 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     end
     if math.random()<p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==0 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,12,1/16,1)
+      audio.stutter(v,vnew,self.tempo,12,1/16,1,math.random(-1,1))
       v=vnew
     end
     if math.random()<p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==1 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,8,1/16,math.random(-1,5))
+      audio.stutter(v,vnew,self.tempo,8,1/16,math.random(-1,5),math.random(-1,1))
       v=vnew
     end
     if math.random()<p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==2 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,4,1/16,math.random(-2,6))
+      audio.stutter(v,vnew,self.tempo,4,1/16,math.random(-2,6),math.random(-1,1))
       v=vnew
     end
     if math.random()<p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==3 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,2,1/16,math.random(-3,7))
+      audio.stutter(v,vnew,self.tempo,2,1/16,math.random(-3,7),math.random(-1,1))
       v=vnew
     end
     if math.random()<p_trunc/100*math.lfo(current_beat,p_trunc_lfo[1],p_trunc_lfo[2])*2 and audio.length(v)>(60/self.tempo/4) then
       local vnew=string.random_filename()
-      audio.silent_end(v,vnew,60/self.tempo/4)
+      audio.silent_end(v,vnew,60/self.tempo/8)
       v=vnew
     end
     -- TODO: make this an optiona
@@ -503,6 +506,14 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       os.cmd("sox "..v.." "..vnew.." gain 0 pad 0 "..(vduration*math.random(1,3)/2).." reverb")
       v=vnew
     end
+    if math.random()<p_reverse/100*math.lfo(current_beat,p_reverse_lfo[1],p_reverse_lfo[2])*2/2 then
+      -- reverse the segment
+      print("reverse after")
+      local vnew=string.random_filename()
+      os.cmd("sox "..v.." "..vnew.." reverse")
+      v=vnew
+    end
+
     local v_duration=0
     if i==1 then
       local new_beats=(audio.length(v))/(60/self.tempo/2)

@@ -422,6 +422,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   local excess_difference=0.005
   local current_beat=0
   local duration_last=0
+  local duration_differences={}
   for i=1,(beats*3) do
     local vi=((i-1)%#self.onset_files)+1
     if math.random()<p_deviation/100 then
@@ -525,6 +526,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     end
 
     local v_duration=audio.length(joined_file)
+    table.insert(duration_differences,v_duration-duration_last)
     if v_duration-duration_last>0 and self.make_movie then
       local vv_duration=v_duration-duration_last
       local movie_file=string.random_filename(".mp4")
@@ -543,10 +545,44 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     end
   end
 
+  -- make bassline
+  local bass_notes={"C","C","C","C","C","C","D#","D#","D#","F","G","G","G","G","G","A","A","A"}
+  local sox_effects=string.random_filename()
+  local f=io.open(sox_effects,"w")
+  io.output(f)
+  local cur_dur=0
+  for _,dur in ipairs(duration_differences) do
+    cur_dur=cur_dur+dur
+    if math.random()<math.lfo(cur_dur,8,1) and cur_dur>0.1 then
+      io.write(string.format("synth %f sine %s2 gain -6 chorus 0.7 0.9 55 0.4 0.25 2 -t deemph reverb fade 0.01 %f 0.01\n",cur_dur,bass_notes[math.random(#bass_notes)],cur_dur))
+      cur_dur=0
+    end
+  end
+  if cur_dur>0.1 then
+    io.write(string.format("synth %f sine %s2 gain -6 chorus 0.7 0.9 55 0.4 0.25 2 -t deemph reverb fade 0.01 %f 0.01\n",cur_dur,bass_notes[math.random(#bass_notes)],cur_dur))
+  end
+  io.close(f)
+  -- write the bass version
+  os.cmd("sox -n -c2 -r "..self.sample_rate.." "..fname..".bass.wav --effects-file="..sox_effects)
+
+  -- make chords
+  local cur_dur=0
+  local total_duration=audio.length(joined_file)
+  local chord_file=string.random_filename()
+  local f=io.open(sox_effects,"w")
+  io.output(f)
+  while cur_dur<total_duration do
+    local new_dur=60/self.tempo*16
+    io.write(string.format("synth sin B2 sawtooth B3 sawtooth D4 sawtooth G4 lowpass 1400 chorus 0.7 0.9 55 0.4 0.2 2 -t remix - gain -6 reverb -w fade 0.1 %f 0.1\n",new_dur))
+    cur_dur=cur_dur+new_dur
+  end
+  io.close(f)
+  os.cmd("sox -n -c2 -r "..self.sample_rate.." "..fname..".chords.wav --effects-file="..sox_effects)
+
   -- make move before pitch shifting/trimming
   if self.make_movie then
     local movie_list=string.random_filename(".txt")
-    f=io.open(movie_list,"a")
+    local f=io.open(movie_list,"a")
     io.output(f)
     for _,m in ipairs(movie_files) do
       io.write("file '"..m.."'\n")

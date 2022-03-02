@@ -413,6 +413,7 @@ function Beat:onset_split()
 end
 
 function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare,p_half,p_reverb,kick_mix,snare_mix)
+  new_tempo=new_tempo or self.tempo
   local kick_merge=string.random_filename()
   local snare_merge=string.random_filename()
   local p_global_lfo={math.random(16,32),0}
@@ -563,44 +564,6 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     end
   end
 
-  -- make bassline
-  -- local bass_notes={1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,6/5,3/2,3/2,3/2,3/2,15/8,15/8,15/8}
-  local bass_notes={1,1,1,1,1,1,27/25,27/25}
-  -- local bass_note_pattern={1/8,1/8}
-  -- local bass_note_pattern={1/8,1/8,1/8,1/8,1/8,1/8,1/8,1/8,3/16,3/16,3/16,1/4,3/8,3/8,1/4}
-  local bass_note_pattern={1/8,1/8,1/8,1/8,1/8,1/8,1/8,1/8,1}
-  local freq=61.74
-  local sox_effects=string.random_filename()
-  local f=io.open(sox_effects,"w")
-  io.output(f)
-  local cur_dur=0
-  -- for _,dur in ipairs(duration_differences) do
-  for i=0,1000 do
-    if cur_dur>audio.length(joined_file) then
-      do break end
-    end
-    -- if math.random()<math.lfo(cur_dur,8,1)*0.2 and cur_dur>0.2 then
-    -- end
-    local dur=bass_note_pattern[(i%#bass_note_pattern)+1]*4*60/self.tempo
-    local freq1=freq*bass_notes[math.random(#bass_notes)]
-    local freq2=freq1+self.tempo/60
-    local freq3=freq1*2+self.tempo/60/2
-    io.write(string.format("synth sin %f sin %f sin %f remix - gain -36 bass +6 overdrive %d %d chorus 0.7 0.9 55 0.4 0.25 2 -t deemph highpass 20 lowpass 200 fade q 0.005 %f 0.05\n",
-    freq1,freq2,freq3,math.random(20,30),math.random(10,30),dur))
-    cur_dur=cur_dur+dur
-  end
-  -- if cur_dur>0.2 then
-  --   local freq1=freq*bass_notes[math.random(#bass_notes)]
-  --   local freq2=freq1+self.tempo/60*math.random(1,4)/2
-  --   -- io.write(string.format("synth %f sine %s2 gain -6 chorus 0.7 0.9 55 0.4 0.25 2 -t deemph reverb fade 0.01 %f 0.01\n",cur_dur,bass_notes[math.random(#bass_notes)],cur_dur))
-  --   io.write(string.format("synth sin %f sin %f remix - gain -30 overdrive %d %d highpass 20 lowpass 200 fade 0.05 %f 0.05\n",
-  --   freq1,freq2,math.random(20,30),math.random(10,30),cur_dur))
-  -- end
-  io.close(f)
-  -- write the bass version
-  os.cmd("sox -n -c2 -r "..self.sample_rate.." "..fname..".bass.wav --effects-file="..sox_effects)
-  os.cmd("sox -m "..fname..".bass.wav "..fname.." "..fname..".dnb.wav")
-
   -- -- make chords
   -- local cur_dur=0
   -- local total_duration=audio.length(joined_file)
@@ -632,13 +595,44 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
 
   -- trim to X beats
   os.cmd("sox "..joined_file.." "..fname.." trim 0 "..final_length)
-  if new_tempo~=nil and new_tempo~=self.tempo then
+  if new_tempo~=self.tempo then
     local v=string.random_filename()
     os.cmd("sox "..fname.." "..v.." speed "..new_tempo/self.tempo)
     os.cmd("mv "..v.." "..fname)
   end
-
   print("generated "..beats.." beats into '"..fname.."' @ "..(new_tempo or self.tempo).." bpm")
+  final_length=audio.length(fname)
+
+  -- make bassline
+  -- local bass_notes={1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,6/5,3/2,3/2,3/2,3/2,15/8,15/8,15/8}
+  local bass_notes={1,1,1,1,1,1,27/25,27/25}
+  -- local bass_note_pattern={1/8,1/8}
+  -- local bass_note_pattern={1/8,1/8,1/8,1/8,1/8,1/8,1/8,1/8,3/16,3/16,3/16,1/4,3/8,3/8,1/4}
+  local bass_note_pattern={1/8,1/8,1/8,1/8,1/8,1/8,1/8,1/8,1}
+  local freq=61.74
+  local sox_effects=string.random_filename()
+  local f=io.open(sox_effects,"w")
+  io.output(f)
+  local cur_dur=0
+  for i=0,1000 do
+    local dur=bass_note_pattern[(i%#bass_note_pattern)+1]*4*60/new_tempo
+    local freq1=freq*bass_notes[math.random(#bass_notes)]
+    local freq2=freq1+new_tempo/60*math.random(1,2)
+    local freq3=freq1*2+new_tempo/60/2
+    io.write(string.format("synth sin %f sin %f sin %f remix - gain -32 bass +6 overdrive %d %d chorus 0.7 0.9 55 0.4 0.25 2 -t deemph highpass 40 lowpass 400 fade q 0.005 %f 0.05\n",
+    freq1,freq2,freq3,math.random(20,30),math.random(20,30),dur))
+    cur_dur=cur_dur+dur
+    if cur_dur>final_length then
+      do break end
+    end
+  end
+  io.close(f)
+  local bass_file=string.random_filename()
+  os.cmd("sox -n -c2 -r "..self.sample_rate.." "..bass_file.." --effects-file="..sox_effects)
+  os.cmd("sox "..bass_file.." "..fname..".bass.wav trim 0 "..final_length)
+
+  -- combine
+  os.cmd("sox -m "..fname..".bass.wav "..fname.." "..fname..".dnb.wav")
 end
 
 function Beat:clean()

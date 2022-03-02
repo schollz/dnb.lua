@@ -673,7 +673,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     local freq1=freq*bass_notes[math.random(#bass_notes)]
     local freq2=freq1+new_tempo/60*math.random(1,2)
     local freq3=freq1*2+new_tempo/60/2
-    io.write(string.format("synth sin %f sin %f sin %f remix - gain -32 bass +6 overdrive %d %d chorus 0.7 0.9 55 0.4 0.25 2 -t deemph highpass 40 lowpass 400 fade q 0.005 %f 0.05\n",
+    io.write(string.format("synth sin %f sin %f sin %f remix - gain -32 bass +6 overdrive %d %d fade q 0.005 %f 0.05\n",
     freq1,freq2,freq3,math.random(20,30),math.random(20,30),dur))
     cur_dur=cur_dur+dur
     if cur_dur>final_length then
@@ -683,7 +683,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   io.close(f)
   local bass_file=string.random_filename()
   os.cmd("sox -n -c2 -r "..self.sample_rate.." "..bass_file.." --effects-file="..sox_effects)
-  os.cmd("sox "..bass_file.." "..fname..".bass.wav trim 0 "..final_length.." contrast")
+  os.cmd("sox "..bass_file.." "..fname..".bass.wav trim 0 "..final_length.." chorus 0.7 0.9 55 0.4 0.25 2 -t deemph highpass 40 lowpass 400 contrast")
 
   -- combine
   os.cmd("sox -m "..fname..".bass.wav "..fname.." "..fname..".dnb.wav contrast")

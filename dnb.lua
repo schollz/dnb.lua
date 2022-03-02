@@ -594,7 +594,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   end
 
   -- trim to X beats
-  os.cmd("sox "..joined_file.." "..fname.." trim 0 "..final_length)
+  os.cmd("sox "..joined_file.." "..fname.." trim 0 "..final_length.." highpass 80 contrast")
   if new_tempo~=self.tempo then
     local v=string.random_filename()
     os.cmd("sox "..fname.." "..v.." speed "..new_tempo/self.tempo)
@@ -629,10 +629,10 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   io.close(f)
   local bass_file=string.random_filename()
   os.cmd("sox -n -c2 -r "..self.sample_rate.." "..bass_file.." --effects-file="..sox_effects)
-  os.cmd("sox "..bass_file.." "..fname..".bass.wav trim 0 "..final_length)
+  os.cmd("sox "..bass_file.." "..fname..".bass.wav trim 0 "..final_length.." contrast")
 
   -- combine
-  os.cmd("sox -m "..fname..".bass.wav "..fname.." "..fname..".dnb.wav")
+  os.cmd("sox -m "..fname..".bass.wav "..fname.." "..fname..".dnb.wav contrast")
 end
 
 function Beat:clean()

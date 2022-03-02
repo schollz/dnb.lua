@@ -1,3 +1,4 @@
+
 # dnb.lua
 
 using aubio and sox to generate breakbeats
@@ -84,10 +85,13 @@ DESCRIPTION
  
   --snare-mix value
       volume of added snare in dB (default -6)
+ 
+  --bassline
+      add bassline
 ```
 
 ## example
 
 ```
-> ./dnb.lua -i sample.aiff -o sample-result.wav --beats 64 --tempo 150
+> ./dnb.lua -b 16 -i amen_resampled.wav -o something.wav -trunc 5 -stutter 40 -kick 50 -deviation 20 --snare 30 --reverse 10 --pitch 5 --kick-mix -6 --snare-mix -6 --reverb 2 --tempo 160 --bassline
 ```

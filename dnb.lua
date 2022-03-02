@@ -642,46 +642,49 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   print("generated "..beats.." beats into '"..fname.."' @ "..(new_tempo or self.tempo).." bpm")
   final_length=audio.length(fname)
 
-  -- make bassline
-  local bass_notes={1,1,1,1,1,1,27/25,27/25}
-  local bass_note_patterns={
-    {1/8,1/8,1/8,1/8,1/8,1/8,1/8,1/8},
-    {1,1},
-    {3/16,3/16,3/16,1/4},
-    {3/8,3/8,1/4},
-    {1/8,1/8,1/8,1/8,1/8,3/8},
-  }
-  local bass_note_pattern=bass_note_patterns[math.random(#bass_note_patterns)]
-  local pattern_i=0
-  local freq=61.74
-  local sox_effects=string.random_filename()
-  local f=io.open(sox_effects,"w")
-  io.output(f)
-  local cur_dur=0
-  for i=0,1000 do
-    pattern_i=pattern_i+1
-    if pattern_i>#bass_note_pattern then
-      pattern_i=1
-      bass_note_pattern=bass_note_patterns[math.random(#bass_note_patterns)]
+  if self.make_bassline then
+    -- make bassline
+    local bass_notes={1,1,1,1,1,1,27/25,27/25}
+    local bass_note_patterns={
+      {1/8,1/8,1/8,1/8,1/8,1/8,1/8,1/8},
+      {1,1},
+      {3/16,3/16,3/16,1/4},
+      {3/8,3/8,1/4},
+      {1/8,1/8,1/8,1/8,1/8,3/8},
+    }
+    local bass_note_pattern=bass_note_patterns[math.random(#bass_note_patterns)]
+    local pattern_i=0
+    local freq=61.74
+    local sox_effects=string.random_filename()
+    local f=io.open(sox_effects,"w")
+    io.output(f)
+    local cur_dur=0
+    for i=0,1000 do
+      pattern_i=pattern_i+1
+      if pattern_i>#bass_note_pattern then
+        pattern_i=1
+        bass_note_pattern=bass_note_patterns[math.random(#bass_note_patterns)]
+      end
+      local dur=bass_note_pattern[pattern_i]*4*60/new_tempo
+      local freq1=freq*bass_notes[math.random(#bass_notes)]
+      local freq2=freq1+new_tempo/60*math.random(1,2)
+      local freq3=freq1*2+new_tempo/60/2
+      io.write(string.format("synth sin %f sin %f sin %f remix - gain -32 bass +6 overdrive %d %d fade p 0.002 %f 0.1\n",
+      freq1,freq2,freq3,math.random(20,30),math.random(20,30),dur))
+      cur_dur=cur_dur+dur
+      if cur_dur>final_length then
+        do break end
+      end
     end
-    local dur=bass_note_pattern[pattern_i]*4*60/new_tempo
-    local freq1=freq*bass_notes[math.random(#bass_notes)]
-    local freq2=freq1+new_tempo/60*math.random(1,2)
-    local freq3=freq1*2+new_tempo/60/2
-    io.write(string.format("synth sin %f sin %f sin %f remix - gain -32 bass +6 overdrive %d %d fade p 0.002 %f 0.1\n",
-    freq1,freq2,freq3,math.random(20,30),math.random(20,30),dur))
-    cur_dur=cur_dur+dur
-    if cur_dur>final_length then
-      do break end
-    end
+    io.close(f)
+    local bass_file=string.random_filename()
+    os.cmd("sox -n -c2 -r "..self.sample_rate.." "..bass_file.." --effects-file="..sox_effects)
+    os.cmd("sox "..bass_file.." "..fname..".bass.wav trim 0 "..final_length.." chorus 0.7 0.9 55 0.4 0.25 2 -t deemph highpass 40 lowpass 400 contrast")
+    -- combine
+    os.cmd("sox -m "..fname..".bass.wav "..fname.." "..fname..".dnb.wav contrast")
+    print("generated "..fname..".bass.wav")
+    print("generated "..fname..".dnb.wav")
   end
-  io.close(f)
-  local bass_file=string.random_filename()
-  os.cmd("sox -n -c2 -r "..self.sample_rate.." "..bass_file.." --effects-file="..sox_effects)
-  os.cmd("sox "..bass_file.." "..fname..".bass.wav trim 0 "..final_length.." chorus 0.7 0.9 55 0.4 0.25 2 -t deemph highpass 40 lowpass 400 contrast")
-
-  -- combine
-  os.cmd("sox -m "..fname..".bass.wav "..fname.." "..fname..".dnb.wav contrast")
 
   -- make movie
   if self.make_movie then
@@ -693,8 +696,12 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     end
     io.close(f)
     local movie_noaudio=string.random_filename(".mp4")
+    local movie_audio_file=fname
+    if self.make_bassline then
+      movie_audio_file=fname..".dnb.wav"
+    end
     os.cmd("ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "..movie_list.." -c copy "..movie_noaudio)
-    os.cmd("ffmpeg -hide_banner -loglevel error -y -i "..fname..".dnb.wav -i "..movie_noaudio.." "..fname..".mp4")
+    os.cmd("ffmpeg -hide_banner -loglevel error -y -i "..movie_audio_file.." -i "..movie_noaudio.." "..fname..".mp4")
     print("generated movie "..fname..".mp4")
   end
 
@@ -742,6 +749,7 @@ local p_reverb=2
 local kick_mix=-6
 local snare_mix=-6
 local make_movie=false
+local make_bassline=false
 for i,v in ipairs(arg) do
   if string.find(v,"input") and string.find(v,"tempo") then
     input_tempo=tonumber(arg[i+1]) or input_tempo
@@ -773,6 +781,8 @@ for i,v in ipairs(arg) do
     p_snare=tonumber(arg[i+1]) or p_snare
   elseif string.find(v,"reverb") then
     p_reverb=tonumber(arg[i+1]) or p_reverb
+  elseif string.find(v,"bassline") then
+    make_bassline=true
   elseif string.find(v,"-b") then
     beats=tonumber(arg[i+1])
   elseif string.find(v,"-t") then
@@ -842,9 +852,12 @@ DESCRIPTION
  
   --snare-mix value
       volume of added snare in dB (default -6)
+ 
+  --bassline
+      add bassline
 ]])
 else
-  local b=Beat:new({fname=fname,tempo=input_tempo,make_movie=make_movie})
+  local b=Beat:new({fname=fname,tempo=input_tempo,make_movie=make_movie,make_bassline=make_bassline})
   b:str()
   b:generate(fname_out,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare,p_half,p_reverb,kick_mix,snare_mix)
   os.cmd("rm /tmp/breaktemp-*")

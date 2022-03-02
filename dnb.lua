@@ -604,7 +604,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       local vv_duration=v_duration-duration_last
       local movie_file=string.random_filename(".mp4")
       os.cmd('composite -gravity center '..v_original..'.png /tmp/breaktemp-onsetall.png /tmp/breaktemp-1.png')
-      os.cmd('ffmpeg -hide_banner -loglevel error -y -loop 1 -i /tmp/breaktemp-1.png -c:v libx264 -t '..vv_duration..' -pix_fmt yuv420p '..movie_file)
+      os.cmd('ffmpeg -hide_banner -loglevel error -y -loop 1 -i /tmp/breaktemp-1.png -c:v libx264 -t '..vv_duration*self.tempo/new_tempo..' -pix_fmt yuv420p '..movie_file)
       table.insert(movie_files,movie_file)
     end
     duration_last=v_duration
@@ -631,21 +631,6 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   -- end
   -- io.close(f)
   -- os.cmd("sox -n -c2 -r "..self.sample_rate.." "..fname..".chords.wav --effects-file="..sox_effects)
-
-  -- make move before pitch shifting/trimming
-  if self.make_movie then
-    local movie_list=string.random_filename(".txt")
-    local f=io.open(movie_list,"a")
-    io.output(f)
-    for _,m in ipairs(movie_files) do
-      io.write("file '"..m.."'\n")
-    end
-    io.close(f)
-    local movie_noaudio=string.random_filename(".mp4")
-    os.cmd("ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "..movie_list.." -c copy "..movie_noaudio)
-    os.cmd("ffmpeg -hide_banner -loglevel error -y -i "..joined_file.." -i "..movie_noaudio.." "..fname..".mp4")
-    print("generated movie "..fname..".mp4")
-  end
 
   -- trim to X beats
   os.cmd("sox "..joined_file.." "..fname.." trim 0 "..final_length.." highpass 80 contrast")
@@ -697,6 +682,22 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
 
   -- combine
   os.cmd("sox -m "..fname..".bass.wav "..fname.." "..fname..".dnb.wav contrast")
+
+  -- make movie
+  if self.make_movie then
+    local movie_list=string.random_filename(".txt")
+    local f=io.open(movie_list,"a")
+    io.output(f)
+    for _,m in ipairs(movie_files) do
+      io.write("file '"..m.."'\n")
+    end
+    io.close(f)
+    local movie_noaudio=string.random_filename(".mp4")
+    os.cmd("ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "..movie_list.." -c copy "..movie_noaudio)
+    os.cmd("ffmpeg -hide_banner -loglevel error -y -i "..fname..".dnb.wav -i "..movie_noaudio.." "..fname..".mp4")
+    print("generated movie "..fname..".mp4")
+  end
+
 end
 
 function Beat:clean()

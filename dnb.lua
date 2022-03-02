@@ -349,6 +349,16 @@ function audio.get_info(fname)
   return sample_rate,channels
 end
 
+function os.file_exists(name)
+  local f=io.open(name,"r")
+  if f~=nil then
+    io.close(f)
+    return true
+  else
+    return false
+  end
+end
+
 function os.capture(cmd,raw)
   local f=assert(io.popen(cmd,'r'))
   local s=assert(f:read('*a'))
@@ -508,71 +518,88 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     if self.onset_is_kick[v_original] then
       -- mix the sound with a kick
       local original_length=audio.length(v)
-      local vnew=string.random_filename()
-      os.cmd("sox -m "..kick_merge.." "..v.." "..vnew.." trim 0 "..original_length)
+      local vnew=v.."kick.wav"
+      if not os.file_exists(vnew) then
+        os.cmd("sox -m "..kick_merge.." "..v.." "..vnew.." trim 0 "..original_length)
+      end
       v=vnew
+
     end
     if self.onset_is_snare[v_original] then
       -- mix the sound with a kick
       local original_length=audio.length(v)
-      local vnew=string.random_filename()
-      os.cmd("sox -m "..snare_merge.." "..v.." "..vnew.." trim 0 "..original_length)
+      local vnew=v.."snare.wav"
+      if not os.file_exists(vnew) then
+        os.cmd("sox -m "..snare_merge.." "..v.." "..vnew.." trim 0 "..original_length)
+      end
       v=vnew
     end
 
     if math.random()<p_global*p_pitch/100*math.lfo(current_beat,p_pitch_lfo[1],p_pitch_lfo[2])*2 then
       -- increase pitch the segment
-      local vnew=string.random_filename()
-      os.cmd("sox "..v.." "..vnew.." pitch "..(200*math.random(1,4)))
+      local vnew=v.."pitch.wav"
+      if not os.file_exists(vnew) then
+        os.cmd("sox "..v.." "..vnew.." pitch "..(200*math.random(1,4)))
+      end
       v=vnew
     end
     if math.random()<p_global*p_half/100*math.lfo(current_beat,p_half_lfo[1],p_half_lfo[2])*2 then
       -- slow down
-      local vnew=string.random_filename()
-      os.cmd("sox "..v.." "..vnew.." speed "..(0.5))
+      local vnew=v.."half.wav"
+      if not os.file_exists(vnew) then
+        os.cmd("sox "..v.." "..vnew.." speed "..(0.5))
+      end
       v=vnew
     end
     if math.random()<p_global*p_reverse/100*math.lfo(current_beat,p_reverse_lfo[1],p_reverse_lfo[2])*2/2 then
       -- reverse the segment
-      local vnew=string.random_filename()
-      os.cmd("sox "..v.." "..vnew.." reverse")
+      local vnew=v.."reverse.wav"
+      if not os.file_exists(vnew) then
+        os.cmd("sox "..v.." "..vnew.." reverse")
+      end
       v=vnew
     end
     if math.random()<p_global*p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==0 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,12,1/16,1,math.random(1,10)<7 and 0 or math.random(-1,1))
+      audio.stutter(v,vnew,self.tempo,12,1/16,1,math.random(1,10)<8 and 0 or math.random(-1,1))
       v=vnew
     end
     if math.random()<p_global*p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==1 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,8,1/16,math.random(-1,5),math.random(1,10)<7 and 0 or math.random(-1,1))
+      audio.stutter(v,vnew,self.tempo,8,1/16,math.random(-1,5),math.random(1,10)<8 and 0 or math.random(-1,1))
       v=vnew
     end
     if math.random()<p_global*p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==2 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,4,1/16,math.random(-2,6),math.random(1,10)<7 and 0 or math.random(-1,1))
+      audio.stutter(v,vnew,self.tempo,4,1/16,math.random(-2,6),math.random(1,10)<8 and 0 or math.random(-1,1))
       v=vnew
     end
     if math.random()<p_global*p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==3 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,2,1/16,math.random(-3,7),math.random(1,10)<7 and 0 or math.random(-1,1))
+      audio.stutter(v,vnew,self.tempo,2,1/16,math.random(-3,7),math.random(1,10)<8 and 0 or math.random(-1,1))
       v=vnew
     end
     if math.random()<p_global*p_trunc/100*math.lfo(current_beat,p_trunc_lfo[1],p_trunc_lfo[2])*2 and audio.length(v)>(60/self.tempo/4) then
-      local vnew=string.random_filename()
-      audio.silent_end(v,vnew,60/self.tempo/8)
+      local vnew=v.."trunc.wav"
+      if not os.file_exists(vnew) then
+        audio.silent_end(v,vnew,60/self.tempo/8)
+      end
       v=vnew
     end
     if math.random()<p_global*p_reverb/100 and (self.onset_is_snare[v_original] or self.onset_is_kick[v_original]) then
       -- add reverb to snare
-      local vnew=string.random_filename()
       local vduration=audio.length(v)
-      os.cmd("sox "..v.." "..vnew.." gain 0 pad 0 "..(vduration*math.random(1,3)/2).." reverb")
+      local vnew=v..vduration.."reverb.wav"
+      if not os.file_exists(vnew) then
+        os.cmd("sox "..v.." "..vnew.." gain 0 pad 0 "..(vduration*math.random(1,3)/2).." reverb")
+      end
       v=vnew
     end
     if math.random()<p_global*p_reverse/100*math.lfo(current_beat,p_reverse_lfo[1],p_reverse_lfo[2])*2/2 then
-      local vnew=string.random_filename()
-      os.cmd("sox "..v.." "..vnew.." reverse")
+      local vnew=v.."reverse.wav"
+      if not os.file_exists(vnew) then
+        os.cmd("sox "..v.." "..vnew.." reverse")
+      end
       v=vnew
     end
 

@@ -334,11 +334,17 @@ function Beat:new (o)
   o.sample_rate,o.channels=audio.get_info(o.fname)
 
   -- determine onsets
-  s=os.capture("aubioonset -i "..o.fname.." -O hfc -f -M "..(60/o.tempo/4).." -s -60 -t 0.6 -B 128 -H 128")
   o.onsets={}
-  for v in s:gmatch("%S+") do
-    table.insert(o.onsets,tonumber(v))
+  local threshold=0.6
+  while #o.onsets<4 and threshold>0 do
+    o.onsets={}
+    s=os.capture("aubioonset -i "..o.fname.." -O hfc -f -M "..(60/o.tempo/4).." -s -60 -t "..threshold.." -B 128 -H 128")
+    for v in s:gmatch("%S+") do
+      table.insert(o.onsets,tonumber(v))
+    end
+    threshold=threshold-0.2
   end
+  print("found "..#o.onsets.." onsets")
 
   o:onset_split()
 
@@ -360,7 +366,7 @@ function Beat:onset_split()
   local duration=audio.length(self.fname)
   if self.make_movie then
     os.cmd("sox "..self.fname.." "..concat_file)
-    os.cmd("audiowaveform -i "..concat_file.." -o /tmp/breaktemp-onsetall.png --background-color ffffff --waveform-color 000000 -w 960 -h 512 --no-axis-labels --pixels-per-second "..math.floor(960/duration).." > /dev/null 2>&1")
+    os.cmd("audiowaveform -i "..concat_file.." -o /tmp/breaktemp-onsetall.png --background-color ffffff --waveform-color d3d3d3 -w 960 -h 512 --no-axis-labels --pixels-per-second "..math.floor(960/duration).." > /dev/null 2>&1")
   end
   for i,v in ipairs(self.onsets) do
     if i>1 then
@@ -372,7 +378,7 @@ function Beat:onset_split()
         if self.make_movie then
           os.cmd("sox -n -r "..sample_rate.." -c "..channels.." "..pad_left.." trim 0.0 "..self.onsets[i-1])
           os.cmd("sox "..pad_left.." "..onset_name.." "..concat_file)
-          os.cmd("audiowaveform -i "..concat_file.." -o "..onset_name..".png --background-color ffffff00 --waveform-color ff0000 -w 960 -h 512 --no-axis-labels --pixels-per-second "..math.floor(960/duration).." > /dev/null 2>&1")
+          os.cmd("audiowaveform -i "..concat_file.." -o "..onset_name..".png --background-color ffffff00 --waveform-color 545454 -w 960 -h 512 --no-axis-labels --pixels-per-second "..math.floor(960/duration).." > /dev/null 2>&1")
         end
       else
         os.cmd("sox "..self.fname.." "..onset_name.." trim "..s.." "..e)
@@ -382,7 +388,7 @@ function Beat:onset_split()
           os.cmd("sox -n -r "..sample_rate.." -c "..channels.." "..pad_left.." trim 0.0 "..self.onsets[i-1])
           os.cmd("sox -n -r "..sample_rate.." -c "..channels.." "..pad_right.." trim 0.0 "..(duration-self.onsets[i]))
           os.cmd("sox "..pad_left.." "..onset_name.." "..pad_right.." "..concat_file)
-          os.cmd("audiowaveform -i "..concat_file.." -o "..onset_name..".png --background-color ffffff00 --waveform-color ff0000 -w 960 -h 512 --no-axis-labels --pixels-per-second "..math.floor(960/duration).." > /dev/null 2>&1")
+          os.cmd("audiowaveform -i "..concat_file.." -o "..onset_name..".png --background-color ffffff00 --waveform-color 545454 -w 960 -h 512 --no-axis-labels --pixels-per-second "..math.floor(960/duration).." > /dev/null 2>&1")
         end
       end
       os.cmd("sox "..onset_name.." "..lowpass_file.." lowpass 200")
@@ -428,7 +434,8 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   local duration_last=0
   local duration_differences={}
   for i=1,(beats*3) do
-    local p_global=beats>16 and math.lfo(current_beat,p_global_lfo[1],p_global_lfo[2]) or 1
+    -- TODO make global lfo an option
+    local p_global=1--beats>16 and math.lfo(current_beat,p_global_lfo[1],p_global_lfo[2]) or 1
     local vi=((i-1)%#self.onset_files)+1
     if math.random()<p_global*p_deviation/100 then
       vi=math.random(#self.onset_files)
@@ -556,38 +563,48 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   end
 
   -- make bassline
-  local bass_notes={"C","C","C","C","C","C","D#","D#","D#","F","G","G","G","G","G","A","A","A"}
+  local bass_notes={1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,6/5,3/2,3/2,3/2,3/2,15/8,15/8,15/8}
+  local freq=61.74
   local sox_effects=string.random_filename()
   local f=io.open(sox_effects,"w")
   io.output(f)
   local cur_dur=0
   for _,dur in ipairs(duration_differences) do
     cur_dur=cur_dur+dur
-    if math.random()<math.lfo(cur_dur,8,1) and cur_dur>0.1 then
-      io.write(string.format("synth %f sine %s2 gain -6 chorus 0.7 0.9 55 0.4 0.25 2 -t deemph reverb fade 0.01 %f 0.01\n",cur_dur,bass_notes[math.random(#bass_notes)],cur_dur))
+    if math.random()<math.lfo(cur_dur,8,1)*0.2 and cur_dur>0.2 then
+      local freq1=freq*bass_notes[math.random(#bass_notes)]
+      local freq2=freq1+self.tempo/60*math.random(1,4)/2
+      -- io.write(string.format("synth %f sine %s2 gain -6 chorus 0.7 0.9 55 0.4 0.25 2 -t deemph reverb fade 0.01 %f 0.01\n",cur_dur,bass_notes[math.random(#bass_notes)],cur_dur))
+      io.write(string.format("synth sin %f sin %f remix - gain -30 overdrive %d %d highpass 20 lowpass 200 fade 0.05 %f 0.05\n",
+      freq1,freq2,math.random(20,30),math.random(10,30),cur_dur))
       cur_dur=0
     end
   end
-  if cur_dur>0.1 then
-    io.write(string.format("synth %f sine %s2 gain -6 chorus 0.7 0.9 55 0.4 0.25 2 -t deemph reverb fade 0.01 %f 0.01\n",cur_dur,bass_notes[math.random(#bass_notes)],cur_dur))
+  if cur_dur>0.2 then
+    local freq1=freq*bass_notes[math.random(#bass_notes)]
+    local freq2=freq1+self.tempo/60*math.random(1,4)/2
+    -- io.write(string.format("synth %f sine %s2 gain -6 chorus 0.7 0.9 55 0.4 0.25 2 -t deemph reverb fade 0.01 %f 0.01\n",cur_dur,bass_notes[math.random(#bass_notes)],cur_dur))
+    io.write(string.format("synth sin %f sin %f remix - gain -30 overdrive %d %d highpass 20 lowpass 200 fade 0.05 %f 0.05\n",
+    freq1,freq2,math.random(20,30),math.random(10,30),cur_dur))
   end
   io.close(f)
   -- write the bass version
   os.cmd("sox -n -c2 -r "..self.sample_rate.." "..fname..".bass.wav --effects-file="..sox_effects)
+  os.cmd("sox -m "..fname..".bass.wav "..fname.." "..fname..".dnb.wav")
 
-  -- make chords
-  local cur_dur=0
-  local total_duration=audio.length(joined_file)
-  local chord_file=string.random_filename()
-  local f=io.open(sox_effects,"w")
-  io.output(f)
-  while cur_dur<total_duration do
-    local new_dur=60/self.tempo*16
-    io.write(string.format("synth sin B2 sawtooth B3 sawtooth D4 sawtooth G4 lowpass 1400 chorus 0.7 0.9 55 0.4 0.2 2 -t remix - gain -6 reverb -w fade 0.1 %f 0.1\n",new_dur))
-    cur_dur=cur_dur+new_dur
-  end
-  io.close(f)
-  os.cmd("sox -n -c2 -r "..self.sample_rate.." "..fname..".chords.wav --effects-file="..sox_effects)
+  -- -- make chords
+  -- local cur_dur=0
+  -- local total_duration=audio.length(joined_file)
+  -- local chord_file=string.random_filename()
+  -- local f=io.open(sox_effects,"w")
+  -- io.output(f)
+  -- while cur_dur<total_duration do
+  --   local new_dur=60/self.tempo*16
+  --   io.write(string.format("synth sin B2 sawtooth B3 sawtooth D4 sawtooth G4 lowpass 1400 chorus 0.7 0.9 55 0.4 0.2 2 -t remix - gain -6 reverb -w fade 0.1 %f 0.1\n",new_dur))
+  --   cur_dur=cur_dur+new_dur
+  -- end
+  -- io.close(f)
+  -- os.cmd("sox -n -c2 -r "..self.sample_rate.." "..fname..".chords.wav --effects-file="..sox_effects)
 
   -- make move before pitch shifting/trimming
   if self.make_movie then

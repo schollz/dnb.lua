@@ -32,6 +32,38 @@ function math.round(number,quant)
   end
 end
 
+function math.std(numbers)
+  local mu=math.average(numbers)
+  local sum=0
+  for _,v in ipairs(numbers) do
+    sum=sum+(v-mu)^2
+  end
+  return math.sqrt(sum/#numbers)
+end
+
+function math.average(numbers)
+  if next(numbers)==nil then
+    do return end
+  end
+  local total=0
+  for _,v in ipairs(numbers) do
+    total=total+v
+  end
+  return total/#numbers
+end
+
+function math.trim(numbers,std_num)
+  local mu=math.average(numbers)
+  local std=math.std(numbers)
+  local new_numbers={}
+  for _,v in ipairs(numbers) do
+    if v>mu-(std*std_num) and v<mu+(std*std_num) then
+      table.insert(new_numbers,v)
+    end
+  end
+  return math.average(new_numbers)
+end
+
 function table.clone(org)
   return {table.unpack(org)}
 end
@@ -196,6 +228,27 @@ end
 
 local audio={}
 
+function audio.tempo(fname)
+  s=os.capture("aubioonset -i "..fname.." -O hfc -f -s -60 -t 0.1 -B 256 -H 128")
+  local last_val=0
+  local bpms={}
+  for v in s:gmatch("%S+") do
+    v=tonumber(v)
+    if v~=nil then
+      if v>0 then
+        local bpm=60/(v-last_val)
+        while bpm>200 do
+          bpm=bpm/2
+        end
+        table.insert(bpms,bpm)
+      end
+      last_val=v
+    end
+  end
+
+  return math.round(math.trim(bpms,1.5))
+end
+
 function audio.length(fname)
   local s=os.capture("sox "..fname.." -n stat 2>&1  | grep Length | awk '{print $3}'")
   return tonumber(s)
@@ -322,13 +375,14 @@ function Beat:new (o)
   self.__index=self
 
   -- determine tempo
-  if o.tempo==nil then
-    local s=os.capture("aubio tempo "..o.fname)
-    o.tempo=math.round(tonumber(s:match("%S+")))
-    if o.tempo==nil then
-      do return end
-    end
-  end
+  o.tempo=audio.tempo(o.fname)
+  -- if o.tempo==nil then
+  --   local s=os.capture("aubio tempo "..o.fname)
+  --   o.tempo=math.round(tonumber(s:match("%S+")))
+  --   if o.tempo==nil then
+  --     do return end
+  --   end
+  -- end
 
   -- determine channels
   o.sample_rate,o.channels=audio.get_info(o.fname)

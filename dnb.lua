@@ -335,14 +335,14 @@ function Beat:new (o)
 
   -- determine onsets
   o.onsets={}
-  local threshold=0.6
+  local threshold=0.5
   while #o.onsets<4 and threshold>0 do
     o.onsets={}
     s=os.capture("aubioonset -i "..o.fname.." -O hfc -f -M "..(60/o.tempo/4).." -s -60 -t "..threshold.." -B 128 -H 128")
     for v in s:gmatch("%S+") do
       table.insert(o.onsets,tonumber(v))
     end
-    threshold=threshold-0.2
+    threshold=threshold-0.1
   end
   print("found "..#o.onsets.." onsets")
 
@@ -391,6 +391,7 @@ function Beat:onset_split()
           os.cmd("audiowaveform -i "..concat_file.." -o "..onset_name..".png --background-color ffffff00 --waveform-color 545454 -w 960 -h 512 --no-axis-labels --pixels-per-second "..math.floor(960/duration).." > /dev/null 2>&1")
         end
       end
+      -- os.cmd("cp "..onset_name.." onset"..i..".wav")
       os.cmd("sox "..onset_name.." "..lowpass_file.." lowpass 200")
       onset_stat={bd=false,sd=false,bd_metric=audio.mean_norm(lowpass_file) or 0}
       os.cmd("sox "..onset_name.." "..lowpass_file.." lowpass 400 highpass 200")
@@ -563,30 +564,38 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   end
 
   -- make bassline
-  local bass_notes={1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,6/5,3/2,3/2,3/2,3/2,15/8,15/8,15/8}
+  -- local bass_notes={1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,6/5,3/2,3/2,3/2,3/2,15/8,15/8,15/8}
+  local bass_notes={1,1,1,1,1,1,27/25,27/25}
+  -- local bass_note_pattern={1/8,1/8}
+  -- local bass_note_pattern={1/8,1/8,1/8,1/8,1/8,1/8,1/8,1/8,3/16,3/16,3/16,1/4,3/8,3/8,1/4}
+  local bass_note_pattern={1/8,1/8,1/8,1/8,1/8,1/8,1/8,1/8,1}
   local freq=61.74
   local sox_effects=string.random_filename()
   local f=io.open(sox_effects,"w")
   io.output(f)
   local cur_dur=0
-  for _,dur in ipairs(duration_differences) do
-    cur_dur=cur_dur+dur
-    if math.random()<math.lfo(cur_dur,8,1)*0.2 and cur_dur>0.2 then
-      local freq1=freq*bass_notes[math.random(#bass_notes)]
-      local freq2=freq1+self.tempo/60*math.random(1,4)/2
-      -- io.write(string.format("synth %f sine %s2 gain -6 chorus 0.7 0.9 55 0.4 0.25 2 -t deemph reverb fade 0.01 %f 0.01\n",cur_dur,bass_notes[math.random(#bass_notes)],cur_dur))
-      io.write(string.format("synth sin %f sin %f remix - gain -30 overdrive %d %d highpass 20 lowpass 200 fade 0.05 %f 0.05\n",
-      freq1,freq2,math.random(20,30),math.random(10,30),cur_dur))
-      cur_dur=0
+  -- for _,dur in ipairs(duration_differences) do
+  for i=0,1000 do
+    if cur_dur>audio.length(joined_file) then
+      do break end
     end
-  end
-  if cur_dur>0.2 then
+    -- if math.random()<math.lfo(cur_dur,8,1)*0.2 and cur_dur>0.2 then
+    -- end
+    local dur=bass_note_pattern[(i%#bass_note_pattern)+1]*4*60/self.tempo
     local freq1=freq*bass_notes[math.random(#bass_notes)]
-    local freq2=freq1+self.tempo/60*math.random(1,4)/2
-    -- io.write(string.format("synth %f sine %s2 gain -6 chorus 0.7 0.9 55 0.4 0.25 2 -t deemph reverb fade 0.01 %f 0.01\n",cur_dur,bass_notes[math.random(#bass_notes)],cur_dur))
-    io.write(string.format("synth sin %f sin %f remix - gain -30 overdrive %d %d highpass 20 lowpass 200 fade 0.05 %f 0.05\n",
-    freq1,freq2,math.random(20,30),math.random(10,30),cur_dur))
+    local freq2=freq1+self.tempo/60
+    local freq3=freq1*2+self.tempo/60/2
+    io.write(string.format("synth sin %f sin %f sin %f remix - gain -36 bass +6 overdrive %d %d chorus 0.7 0.9 55 0.4 0.25 2 -t deemph highpass 20 lowpass 200 fade q 0.005 %f 0.05\n",
+    freq1,freq2,freq3,math.random(20,30),math.random(10,30),dur))
+    cur_dur=cur_dur+dur
   end
+  -- if cur_dur>0.2 then
+  --   local freq1=freq*bass_notes[math.random(#bass_notes)]
+  --   local freq2=freq1+self.tempo/60*math.random(1,4)/2
+  --   -- io.write(string.format("synth %f sine %s2 gain -6 chorus 0.7 0.9 55 0.4 0.25 2 -t deemph reverb fade 0.01 %f 0.01\n",cur_dur,bass_notes[math.random(#bass_notes)],cur_dur))
+  --   io.write(string.format("synth sin %f sin %f remix - gain -30 overdrive %d %d highpass 20 lowpass 200 fade 0.05 %f 0.05\n",
+  --   freq1,freq2,math.random(20,30),math.random(10,30),cur_dur))
+  -- end
   io.close(f)
   -- write the bass version
   os.cmd("sox -n -c2 -r "..self.sample_rate.." "..fname..".bass.wav --effects-file="..sox_effects)
@@ -717,7 +726,7 @@ end
 if #arg<2 then
   print([[NAME
  
-    breakbeat.lua - create a breakbeat from a drum loop  
+    dnb.lua - generative drum & bass
  
 DESCRIPTION
  

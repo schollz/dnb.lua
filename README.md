@@ -1,4 +1,4 @@
-# breakbeat
+# dnb.lua
 
 using aubio and sox to generate breakbeats
 
@@ -27,7 +27,7 @@ to make movies you also need `ffmpeg`, `imagemagick`, and `audiowaveform`.
 ```
 NAME
  
-    breakbeat.lua - create a breakbeat from a drum loop  
+    dnb.lua - generative drum & bass
  
 DESCRIPTION
  
@@ -65,7 +65,10 @@ DESCRIPTION
       probability of truncation (0-100%, default 5%)
  
   --half value
-      probability of slow down (0-100%, default 5%)
+      probability of slow down (0-100%, default 1%)
+ 
+  --reverb value
+      probability of adding reverb tail to kick/snare (0-100%, default 2%)
  
   --deviation value
       probability of deviating from base pattern (0-100%, default 30%)
@@ -86,5 +89,5 @@ DESCRIPTION
 ## example
 
 ```
-> ./breakbeat.lua -i sample.aiff -o sample-result.wav --beats 64 --tempo 150
+> ./dnb.lua -i sample.aiff -o sample-result.wav --beats 64 --tempo 150
 ```

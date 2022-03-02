@@ -477,22 +477,22 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     end
     if math.random()<p_global*p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==0 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,12,1/16,1,math.random(-1,1))
+      audio.stutter(v,vnew,self.tempo,12,1/16,1,math.random(1,10)<7 and 0 or math.random(-1,1))
       v=vnew
     end
     if math.random()<p_global*p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==1 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,8,1/16,math.random(-1,5),math.random(-1,1))
+      audio.stutter(v,vnew,self.tempo,8,1/16,math.random(-1,5),math.random(1,10)<7 and 0 or math.random(-1,1))
       v=vnew
     end
     if math.random()<p_global*p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==2 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,4,1/16,math.random(-2,6),math.random(-1,1))
+      audio.stutter(v,vnew,self.tempo,4,1/16,math.random(-2,6),math.random(1,10)<7 and 0 or math.random(-1,1))
       v=vnew
     end
     if math.random()<p_global*p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==3 then
       local vnew=string.random_filename()
-      audio.stutter(v,vnew,self.tempo,2,1/16,math.random(-3,7),math.random(-1,1))
+      audio.stutter(v,vnew,self.tempo,2,1/16,math.random(-3,7),math.random(1,10)<7 and 0 or math.random(-1,1))
       v=vnew
     end
     if math.random()<p_global*p_trunc/100*math.lfo(current_beat,p_trunc_lfo[1],p_trunc_lfo[2])*2 and audio.length(v)>(60/self.tempo/4) then

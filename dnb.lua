@@ -658,18 +658,28 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   final_length=audio.length(fname)
 
   -- make bassline
-  -- local bass_notes={1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,6/5,3/2,3/2,3/2,3/2,15/8,15/8,15/8}
   local bass_notes={1,1,1,1,1,1,27/25,27/25}
-  -- local bass_note_pattern={1/8,1/8}
-  -- local bass_note_pattern={1/8,1/8,1/8,1/8,1/8,1/8,1/8,1/8,3/16,3/16,3/16,1/4,3/8,3/8,1/4}
-  local bass_note_pattern={1/8,1/8,1/8,1/8,1/8,1/8,1/8,1/8,1}
+  local bass_note_patterns={
+    {1/8,1/8,1/8,1/8,1/8,1/8,1/8,1/8},
+    {1,1},
+    {3/16,3/16,3/16,1/4},
+    {3/8,3/8,1/4},
+    {1/8,1/8,1/8,1/8,1/8,3/8},
+  }
+  local bass_note_pattern=bass_note_patterns[math.random(#bass_note_patterns)]
+  local pattern_i=0
   local freq=61.74
   local sox_effects=string.random_filename()
   local f=io.open(sox_effects,"w")
   io.output(f)
   local cur_dur=0
   for i=0,1000 do
-    local dur=bass_note_pattern[(i%#bass_note_pattern)+1]*4*60/new_tempo
+    pattern_i=pattern_i+1
+    if pattern_i>#bass_note_pattern then
+      pattern_i=1
+      bass_note_pattern=bass_note_patterns[math.random(#bass_note_patterns)]
+    end
+    local dur=bass_note_pattern[pattern_i]*4*60/new_tempo
     local freq1=freq*bass_notes[math.random(#bass_notes)]
     local freq2=freq1+new_tempo/60*math.random(1,2)
     local freq3=freq1*2+new_tempo/60/2

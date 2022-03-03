@@ -500,11 +500,14 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   local current_beat=0
   local duration_last=0
   local duration_differences={}
-  io.write("\027[H\027[2J")
+  if not self.no_logo then
+    io.write("\027[H\027[2J")
+  end
   for i=1,(beats*3) do
     local progress=(math.round(duration_last/(60/new_tempo)/beats*1000)/10)
-    io.write("\027[H\027[2K")
-    print([[
+    if not self.no_logo then
+      io.write("\027[H\027[2K")
+      print([[
  
     _________/\\\___________________/\\\________        
      ________\/\\\__________________\/\\\________       
@@ -517,9 +520,10 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
             __\///////\//___\///____\///___\/////////___
  
 ]])
-    self:str(self.tempo~=new_tempo and new_tempo or nil)
-    print("generating "..beats.." beats")
-    print("percent complete: "..progress.."%")
+      self:str(self.tempo~=new_tempo and new_tempo or nil)
+      print("generating "..beats.." beats")
+      print("percent complete: "..progress.."%")
+    end
     os.cmd('echo '..progress.." >> /tmp/breaktemp-progress")
     -- TODO make global lfo an option
     local p_global=math.lfo(current_beat,p_global_lfo[1],p_global_lfo[2]) or 1
@@ -806,6 +810,7 @@ local kick_mix=-6
 local snare_mix=-6
 local make_movie=false
 local make_bassline=false
+local no_logo=false
 for i,v in ipairs(arg) do
   if string.find(v,"input") and string.find(v,"tempo") then
     input_tempo=tonumber(arg[i+1]) or input_tempo
@@ -837,6 +842,8 @@ for i,v in ipairs(arg) do
     p_snare=tonumber(arg[i+1]) or p_snare
   elseif string.find(v,"reverb") then
     p_reverb=tonumber(arg[i+1]) or p_reverb
+  elseif string.find(v,"logo") then
+    no_logo=true
   elseif string.find(v,"bassline") then
     make_bassline=true
   elseif string.find(v,"-b") then
@@ -876,6 +883,9 @@ DESCRIPTION
   -d, --debug
       debug mode
  
+  --no-logo
+      don't show logo
+ 
   --reverse value
       probability of reversing (0-100%, default 10%)
  
@@ -913,7 +923,10 @@ DESCRIPTION
       add bassline
 ]])
 else
-  local b=Beat:new({fname=fname,tempo=input_tempo,make_movie=make_movie,make_bassline=make_bassline})
+  if debugging then
+    no_logo=true
+  end
+  local b=Beat:new({fname=fname,tempo=input_tempo,make_movie=make_movie,make_bassline=make_bassline,no_logo=no_logo})
   b:str()
   b:generate(fname_out,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare,p_half,p_reverb,kick_mix,snare_mix)
   os.cmd("rm /tmp/breaktemp-*")

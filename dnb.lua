@@ -437,7 +437,9 @@ function Beat:onset_split()
     if i>1 then
       local s=self.onsets[i-1]
       local onset_name=string.random_filename(s..".wav")
-      local e=(self.onsets[i]-self.onsets[i-1])+(60/self.tempo/14)
+      local e=(self.onsets[i]-self.onsets[i-1])
+      local sn=math.round(e/(60/self.tempo/4))
+      e=sn*60/self.tempo/4+0.02
       if i==#self.onsets then
         os.cmd("sox "..self.fname.." "..onset_name.." trim "..s)
         if self.make_movie then
@@ -503,7 +505,9 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   if not self.no_logo then
     io.write("\027[H\027[2J")
   end
+  local seed=os.time()
   for i=1,(beats*3) do
+    -- math.randomseed(seed)
     local progress=(math.round(duration_last/(60/new_tempo)/beats*1000)/10)
     if not self.no_logo then
       io.write("\027[H\027[2K")
@@ -532,6 +536,20 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       vi=math.random(#self.onset_files)
     end
     local v=self.onset_files[vi]
+    -- if math.round(current_beat)%4==0 and current_beat>4 then
+    --   -- splice in a repeat?
+    --   print("joined")
+    --   local repeat_file=string.random_filename()
+    --   local join_temp=string.random_filename()
+    --   local s=duration_last-(4*60/self.tempo)
+    --   local slen=4*60/self.tempo
+    --   os.cmd("sox "..joined_file.." "..repeat_file.." trim "..s)
+    --   os.cmd("sox "..joined_file.." "..repeat_file.." "..join_temp)
+    --   os.cmd("mv "..join_temp.." "..joined_file)
+    -- end
+    if math.round(current_beat)%4==0 then
+      seed=seed+1
+    end
     if math.round(current_beat)%8==0 and math.random()<p_kick/100 and next(self.onset_files_bd)~=nil then
       v=self.onset_files_bd[math.random(#self.onset_files_bd)]
     end
@@ -548,7 +566,6 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
         os.cmd("sox -m "..kick_merge.." "..v.." "..vnew.." trim 0 "..original_length)
       end
       v=vnew
-
     end
     if self.onset_is_snare[v_original] then
       -- mix the sound with a kick
@@ -591,22 +608,26 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       end
       v=vnew
     end
-    if math.random()<p_global*p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==0 then
+    if math.random()<p_global*p_stutter/100*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%8==2 then
       local vnew=string.random_filename()
       audio.stutter(v,vnew,self.tempo,12,1/16,1,math.random(1,10)<8 and 0 or math.random(-1,1))
       v=vnew
-    elseif math.random()<p_global*p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==1 then
+      seed=seed+1
+    elseif math.random()<p_global*p_stutter/100*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%8==4 then
       local vnew=string.random_filename()
       audio.stutter(v,vnew,self.tempo,8,1/16,math.random(-1,5),math.random(1,10)<8 and 0 or math.random(-1,1))
       v=vnew
-    elseif math.random()<p_global*p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==2 then
+      seed=seed+1
+    elseif math.random()<p_global*p_stutter/100*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%8==6 then
       local vnew=string.random_filename()
       audio.stutter(v,vnew,self.tempo,4,1/16,math.random(-2,6),math.random(1,10)<8 and 0 or math.random(-1,1))
       v=vnew
-    elseif math.random()<p_global*p_stutter/100/4*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%4==3 then
+      seed=seed+1
+    elseif math.random()<p_global*p_stutter/100*math.lfo(current_beat,p_stutter_lfo[1],p_stutter_lfo[2])*2 and math.round(current_beat)%8==7 then
       local vnew=string.random_filename()
       audio.stutter(v,vnew,self.tempo,2,1/16,math.random(-3,7),math.random(1,10)<8 and 0 or math.random(-1,1))
       v=vnew
+      seed=seed+1
     end
     if math.random()<p_global*p_trunc/100*math.lfo(current_beat,p_trunc_lfo[1],p_trunc_lfo[2])*2 and audio.length(v)>(60/self.tempo/4) then
       local vnew=v.."trunc.wav"

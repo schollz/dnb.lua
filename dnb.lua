@@ -526,7 +526,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     end
     os.cmd('echo '..progress.." >> /tmp/breaktemp-progress")
     -- TODO make global lfo an option
-    local p_global=math.lfo(current_beat,p_global_lfo[1],p_global_lfo[2]) or 1
+    local p_global=self.global_lfo and math.lfo(current_beat,p_global_lfo[1],p_global_lfo[2]) or 1
     local vi=((i-1)%#self.onset_files)+1
     if math.random()<p_global*p_deviation/100 then
       vi=math.random(#self.onset_files)
@@ -811,6 +811,7 @@ local snare_mix=-6
 local make_movie=false
 local make_bassline=false
 local no_logo=false
+local global_lfo=false
 for i,v in ipairs(arg) do
   if string.find(v,"input") and string.find(v,"tempo") then
     input_tempo=tonumber(arg[i+1]) or input_tempo
@@ -822,6 +823,8 @@ for i,v in ipairs(arg) do
     fname_out=arg[i+1]
   elseif string.find(v,"reverse") then
     p_reverse=tonumber(arg[i+1]) or p_reverse
+  elseif string.find(v,"lfo") then
+    global_lfo=true
   elseif string.find(v,"half") then
     p_half=tonumber(arg[i+1]) or p_half
   elseif string.find(v,"stutter") then
@@ -886,6 +889,9 @@ DESCRIPTION
   --no-logo
       don't show logo
  
+  --global-lfo
+      modulate every probability by a global lfo (random)
+ 
   --reverse value
       probability of reversing (0-100%, default 10%)
  
@@ -926,7 +932,7 @@ else
   if debugging then
     no_logo=true
   end
-  local b=Beat:new({fname=fname,tempo=input_tempo,make_movie=make_movie,make_bassline=make_bassline,no_logo=no_logo})
+  local b=Beat:new({global_lfo=global_lfo,fname=fname,tempo=input_tempo,make_movie=make_movie,make_bassline=make_bassline,no_logo=no_logo})
   b:str()
   b:generate(fname_out,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc,p_deviation,p_kick,p_snare,p_half,p_reverb,kick_mix,snare_mix)
   os.cmd("rm /tmp/breaktemp-*")

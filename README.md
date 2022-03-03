@@ -53,6 +53,12 @@ DESCRIPTION
   -d, --debug
       debug mode
  
+  --no-logo
+      don't show logo
+ 
+  --global-lfo
+      modulate every probability by a global lfo (random)
+ 
   --reverse value
       probability of reversing (0-100%, default 10%)
  
@@ -88,6 +94,7 @@ DESCRIPTION
  
   --bassline
       add bassline
+
 ```
 
 ## example

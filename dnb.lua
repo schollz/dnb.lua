@@ -500,7 +500,27 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   local current_beat=0
   local duration_last=0
   local duration_differences={}
+  io.write("\027[H\027[2J")
   for i=1,(beats*3) do
+    local progress=(math.round(duration_last/(60/new_tempo)/beats*1000)/10)
+    io.write("\027[H\027[2K")
+    print([[
+ 
+    _________/\\\___________________/\\\________        
+     ________\/\\\__________________\/\\\________       
+      ________\/\\\__________________\/\\\________      
+       ________\/\\\____/\\/\\\\\\____\/\\\________     
+        ___/\\\\\\\\\___\/\\\////\\\___\/\\\\\\\\\__    
+         __/\\\////\\\___\/\\\__\//\\\__\/\\\////\\\_   
+          _\/\\\__\/\\\___\/\\\___\/\\\__\/\\\__\/\\\_  
+           _\//\\\\\\\/\\__\/\\\___\/\\\__\/\\\\\\\\\__ 
+            __\///////\//___\///____\///___\/////////___
+ 
+]])
+    self:str(self.tempo~=new_tempo and new_tempo or nil)
+    print("generating "..beats.." beats")
+    print("percent complete: "..progress.."%")
+    os.cmd('echo '..progress.." >> /tmp/breaktemp-progress")
     -- TODO make global lfo an option
     local p_global=math.lfo(current_beat,p_global_lfo[1],p_global_lfo[2]) or 1
     local vi=((i-1)%#self.onset_files)+1
@@ -749,11 +769,11 @@ function Beat:clean()
   end
 end
 
-function Beat:str()
+function Beat:str(newtempo)
   print("filename: "..self.fname)
   print("sample rate: "..self.sample_rate)
   print("channels: "..self.channels)
-  print("tempo: "..self.tempo.." bpm")
+  print("tempo: "..self.tempo.." bpm"..(newtempo and " -> "..newtempo.." bpm" or ""))
   if debugging then
     print("onsets: ")
     for i,v in ipairs(self.onset_files) do

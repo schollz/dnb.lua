@@ -399,9 +399,10 @@ function Beat:new (o)
 
   -- determine onsets
   o.onsets={}
-  local threshold=0.5
+  local threshold=0.9
   while #o.onsets<4 and threshold>0 do
     o.onsets={}
+    -- TODO: make option to do /2 or /4
     s=os.capture("aubioonset -i "..o.fname.." -O hfc -f -M "..(60/o.tempo/4).." -s -60 -t "..threshold.." -B 128 -H 128")
     for v in s:gmatch("%S+") do
       table.insert(o.onsets,tonumber(v))
@@ -436,7 +437,7 @@ function Beat:onset_split()
     if i>1 then
       local s=self.onsets[i-1]
       local onset_name=string.random_filename(s..".wav")
-      local e=(self.onsets[i]-self.onsets[i-1])
+      local e=(self.onsets[i]-self.onsets[i-1])+(60/self.tempo/14)
       if i==#self.onsets then
         os.cmd("sox "..self.fname.." "..onset_name.." trim "..s)
         if self.make_movie then
@@ -480,7 +481,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   new_tempo=new_tempo or self.tempo
   local kick_merge=string.random_filename()
   local snare_merge=string.random_filename()
-  local p_global_lfo={math.random(16,32),0}
+  local p_global_lfo={math.random(32,64),0}
   local p_reverse_lfo={math.random(12,24),math.random(1,100)}
   local p_stutter_lfo={math.random(12,18),math.random(1,100)}
   local p_pitch_lfo={math.random(12,24),math.random(1,100)}
@@ -501,7 +502,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
   local duration_differences={}
   for i=1,(beats*3) do
     -- TODO make global lfo an option
-    local p_global=1--beats>16 and math.lfo(current_beat,p_global_lfo[1],p_global_lfo[2]) or 1
+    local p_global=math.lfo(current_beat,p_global_lfo[1],p_global_lfo[2]) or 1
     local vi=((i-1)%#self.onset_files)+1
     if math.random()<p_global*p_deviation/100 then
       vi=math.random(#self.onset_files)
@@ -517,9 +518,9 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
 
     if self.onset_is_kick[v_original] then
       -- mix the sound with a kick
-      local original_length=audio.length(v)
       local vnew=v.."kick.wav"
       if not os.file_exists(vnew) then
+        local original_length=audio.length(v)
         os.cmd("sox -m "..kick_merge.." "..v.." "..vnew.." trim 0 "..original_length)
       end
       v=vnew
@@ -527,9 +528,9 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     end
     if self.onset_is_snare[v_original] then
       -- mix the sound with a kick
-      local original_length=audio.length(v)
       local vnew=v.."snare.wav"
       if not os.file_exists(vnew) then
+        local original_length=audio.length(v)
         os.cmd("sox -m "..snare_merge.." "..v.." "..vnew.." trim 0 "..original_length)
       end
       v=vnew
@@ -556,6 +557,13 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       local vnew=v.."reverse.wav"
       if not os.file_exists(vnew) then
         os.cmd("sox "..v.." "..vnew.." reverse")
+      end
+      v=vnew
+    end
+    if math.random()<0.0 and self.onset_is_kick[v_original] then
+      local vnew=v.."stretch.wav"
+      if not os.file_exists(vnew) then
+        audio.stretch(v,vnew,audio.length(v)*4)
       end
       v=vnew
     end
@@ -696,8 +704,9 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
       local freq1=freq*bass_notes[math.random(#bass_notes)]
       local freq2=freq1+new_tempo/60*math.random(1,2)
       local freq3=freq1*2+new_tempo/60/2
-      io.write(string.format("synth sin %f sin %f sin %f remix - gain -32 bass +6 overdrive %d %d fade p 0.002 %f 0.1\n",
-      freq1,freq2,freq3,math.random(20,30),math.random(20,30),dur))
+      local freq4=freq1*4+new_tempo/60/2
+      io.write(string.format("synth sin %f sin %f sin %f sin %f remix - gain -32 bass +6 overdrive %d %d fade p 0.002 %f 0.05\n",
+      freq1,freq2,freq3,freq4,math.random(20,30),math.random(20,30),dur))
       cur_dur=cur_dur+dur
       if cur_dur>final_length then
         do break end
@@ -706,7 +715,7 @@ function Beat:generate(fname,beats,new_tempo,p_reverse,p_stutter,p_pitch,p_trunc
     io.close(f)
     local bass_file=string.random_filename()
     os.cmd("sox -n -c2 -r "..self.sample_rate.." "..bass_file.." --effects-file="..sox_effects)
-    os.cmd("sox "..bass_file.." "..fname..".bass.wav trim 0 "..final_length.." chorus 0.7 0.9 55 0.4 0.25 2 -t deemph highpass 40 lowpass 400 contrast")
+    os.cmd("sox "..bass_file.." "..fname..".bass.wav trim 0 "..final_length.." chorus 0.7 0.9 55 0.4 0.25 2 -t deemph highpass 40 lowpass 800 contrast")
     -- combine
     os.cmd("sox -m "..fname..".bass.wav "..fname.." "..fname..".dnb.wav contrast")
     print("generated "..fname..".bass.wav")
